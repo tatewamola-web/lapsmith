@@ -36,6 +36,9 @@ class TelemetryFrame:
     cur_s1: float = -1.0          # current lap's sector splits as they happen
     cur_s2: float = -1.0
     in_pits: bool = False
+    # Sim's own lap-legitimacy verdict (rF2 convention):
+    # 2 = count lap and time, 1 = count lap not time (cut/reset), 0 = neither.
+    count_flag: int = 2
 
     def to_dict(self) -> dict:
         return asdict(self)

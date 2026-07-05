@@ -32,6 +32,11 @@ class LapRecorder:
         # can lag (LMU updates it ~5 Hz), so these are the reliable source.
         self._seen_s1 = -1.0
         self._seen_s2 = -1.0
+        # Track cuts: the sim drops count_flag below 2 when a lap stops
+        # being time-countable. Require a short streak so a single noisy
+        # frame can't invalidate a clean lap.
+        self._flag_low_streak = 0
+        self._cut_detected = False
         # A finished lap parks here until scoring has refreshed (~0.6 s),
         # so last_lap_time/sector reads are fresh, not the previous lap's.
         self._pending: Optional[dict] = None
@@ -65,6 +70,12 @@ class LapRecorder:
 
         if frame.in_pits:
             self._touched_pits = True
+        if frame.count_flag < 2:
+            self._flag_low_streak += 1
+            if self._flag_low_streak >= 15:  # ~0.3 s sustained
+                self._cut_detected = True
+        else:
+            self._flag_low_streak = 0
         self._min_dist = min(self._min_dist, frame.lap_dist)
         self._max_dist = max(self._max_dist, frame.lap_dist)
         if frame.cur_s1 and frame.cur_s1 > 0:
@@ -84,6 +95,8 @@ class LapRecorder:
         self._max_dist = 0.0
         self._seen_s1 = -1.0
         self._seen_s2 = -1.0
+        self._flag_low_streak = 0
+        self._cut_detected = False
 
     def _park(self, boundary_frame: TelemetryFrame) -> None:
         """Stash the finished lap; finalized ~0.6 s later with fresh scoring."""
@@ -95,6 +108,7 @@ class LapRecorder:
             "max_dist": self._max_dist,
             "seen_s1": self._seen_s1,
             "seen_s2": self._seen_s2,
+            "cut_detected": self._cut_detected,
             "lap_number": self._current_lap,
             "context": self.context,
             "countdown": 30,
@@ -121,6 +135,7 @@ class LapRecorder:
         valid = (
             p["saw_full_start"]
             and not p["touched_pits"]
+            and not p["cut_detected"]
             and coverage >= MIN_COVERAGE
             and lap_time > 0
         )

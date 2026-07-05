@@ -16,7 +16,8 @@
       "PowerShell(curl.exe -s http://127.0.0.1:8000/api/status)",
       "PowerShell(& \"engine\\\\.venv\\\\Scripts\\\\python.exe\" \"C:\\\\Users\\\\tatew\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\C--Users-tatew-Sim-Racing-Telemetry-Project\\\\448ade40-c03b-4e4e-86fd-91511d885147\\\\scratchpad\\\\check_laps.py\")",
       "PowerShell(& \"engine\\\\.venv\\\\Scripts\\\\python.exe\" \"C:\\\\Users\\\\tatew\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\C--Users-tatew-Sim-Racing-Telemetry-Project\\\\448ade40-c03b-4e4e-86fd-91511d885147\\\\scratchpad\\\\check_raw.py\")",
-      "PowerShell(& \"engine\\\\.venv\\\\Scripts\\\\python.exe\" \"C:\\\\Users\\\\tatew\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\C--Users-tatew-Sim-Racing-Telemetry-Project\\\\448ade40-c03b-4e4e-86fd-91511d885147\\\\scratchpad\\\\debug_delta.py\")"
+      "PowerShell(& \"engine\\\\.venv\\\\Scripts\\\\python.exe\" \"C:\\\\Users\\\\tatew\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\C--Users-tatew-Sim-Racing-Telemetry-Project\\\\448ade40-c03b-4e4e-86fd-91511d885147\\\\scratchpad\\\\debug_delta.py\")",
+      "PowerShell(& \"engine\\\\.venv\\\\Scripts\\\\python.exe\" \"C:\\\\Users\\\\tatew\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\C--Users-tatew-Sim-Racing-Telemetry-Project\\\\448ade40-c03b-4e4e-86fd-91511d885147\\\\scratchpad\\\\check_lap7.py\")"
     ]
   }
 }

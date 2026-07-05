@@ -130,6 +130,7 @@ class LMUAdapter(BaseAdapter):
             cur_s1=float(scor_v.mCurSector1),
             cur_s2=float(scor_v.mCurSector2),
             in_pits=bool(scor_v.mInPits),
+            count_flag=int(scor_v.mCountLapFlag),
         )
 
     # -- helpers ------------------------------------------------------

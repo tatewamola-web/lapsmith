@@ -33,7 +33,8 @@ export default function TrackMap({ cmp }: { cmp: ComparePayload }) {
     const ox = (cssW - (maxX - minX) * scale) / 2;
     const oz = (cssH - (maxZ - minZ) * scale) / 2;
     const px = (i: number) => ox + (x[i] - minX) * scale;
-    const pz = (i: number) => oz + (z[i] - minZ) * scale;
+    // canvas y grows downward; flip z so the circuit isn't mirrored
+    const pz = (i: number) => oz + (maxZ - z[i]) * scale;
 
     // Local time-loss rate: slope of delta over ~40 m windows.
     const win = 10;

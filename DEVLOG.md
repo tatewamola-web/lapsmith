@@ -144,6 +144,44 @@ shipping. Collapsing the run story to one click is what makes it shareable.
 
 ---
 
+## 2026-07-05 — Day 2 (evening): The app learns to coach
+
+### Feature: automatic corner detection and per-corner coaching
+The insights engine finds corners on the *reference* lap by looking for
+prominent local minima in smoothed speed (a corner is, mathematically, a
+place where you slow down and speed back up). For each corner it measures:
+time lost across it (from the delta curve), braking point (first distance
+where brake > 40%), apex speed, and throttle-application point — for both
+laps — then generates plain-language advice: "carrying 11 km/h less at the
+apex; back to full throttle 16m later." Sector boundaries are located by
+asking where the reference lap's clock hit its official sector splits.
+First real output (Monza, lap 10 vs PB): 6 corners, 2.86s flagged
+recoverable, worst at the Roggia chicane and Parabolica.
+**Why it matters:** this is the step from *showing* data to *interpreting*
+it — the difference between a chart and a coach. All from signal processing
+on two arrays; no ML required.
+
+### Bug: the track map was mirrored
+Monza looked "backwards." Cause: screen coordinates grow downward while the
+game's world z-axis grows in the opposite direction, so every map was a
+mirror image. One line (flip z when projecting) fixed both maps.
+**Lesson:** coordinate-system handedness is the oldest graphics bug there
+is, and it still gets everyone once.
+
+### QoL from user feedback
+Unmissable engine state in the header (ENGINE OFFLINE / WAITING FOR GAME /
+● RECORDING with pulse), lap list redesigned as two-line rows so nothing
+hides behind a horizontal scrollbar, chart zoom documented (drag to zoom,
+double-click to reset).
+
+### Honest answer of the day
+"Can you see my sessions from before the app existed?" No — and neither
+can SimHub: tools only "see everything" that they were running to record.
+Telemetry not captured at the moment it happened is gone. That's why the
+recording indicator got promoted to the loudest element in the header.
+
+---
+
 ## Design principles that emerged (running list)
 
 1. **Wall off what varies.** One adapter per sim; everything else is shared.

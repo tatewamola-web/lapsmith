@@ -92,6 +92,126 @@ def compare(lap: dict[str, np.ndarray], ref: dict[str, np.ndarray]) -> Optional[
     }
 
 
+def _smooth(a: np.ndarray, w: int = 7) -> np.ndarray:
+    return np.convolve(a, np.ones(w) / w, mode="same")
+
+
+def _find_corner_apexes(dist: np.ndarray, speed: np.ndarray) -> list[int]:
+    """Indices of corner apexes: prominent local minima of smoothed speed."""
+    v = _smooth(speed)
+    n = len(v)
+    win = 12  # +/- ~50 m at 4 m grid
+    apexes: list[int] = []
+    for i in range(win, n - win):
+        seg = v[i - win:i + win + 1]
+        if v[i] != seg.min():
+            continue
+        # prominence: must actually slow down vs. surroundings
+        wide = v[max(0, i - 60):min(n, i + 60)]
+        if wide.max() - v[i] < 5.0:  # < 18 km/h dip is not a corner
+            continue
+        if apexes and dist[i] - dist[apexes[-1]] < 90.0:
+            if v[i] < v[apexes[-1]]:
+                apexes[-1] = i
+            continue
+        apexes.append(i)
+    return apexes
+
+
+def insights(lap: dict[str, np.ndarray], ref: dict[str, np.ndarray],
+             ref_s1: float = -1.0, ref_s2: float = -1.0) -> Optional[dict]:
+    """Corner-by-corner comparison with generated coaching advice.
+
+    Corners are detected on the *reference* lap (the target line). For each
+    corner: time lost/gained across it, braking point, apex speed, and
+    throttle-application point for both laps.
+    """
+    if "lap_dist" not in lap or "lap_dist" not in ref:
+        return None
+    max_d = float(min(lap["lap_dist"].max(), ref["lap_dist"].max()))
+    if max_d < GRID_STEP * 10:
+        return None
+    grid = np.arange(0.0, max_d, GRID_STEP)
+    a = resample_lap(lap, grid)   # your lap
+    b = resample_lap(ref, grid)   # reference
+    delta = a["lap_time"] - b["lap_time"]
+    delta -= delta[0]
+
+    # Sector line distances: where the ref lap's clock hit its splits.
+    # ref_s2 is cumulative (rF2 convention: includes s1).
+    s1_dist = float(np.interp(ref_s1, b["lap_time"], grid)) if ref_s1 > 0 else -1.0
+    s2_dist = float(np.interp(ref_s2, b["lap_time"], grid)) if ref_s2 > 0 else -1.0
+
+    def sector_of(d: float) -> int:
+        if s1_dist > 0 and d < s1_dist:
+            return 1
+        if s2_dist > 0 and d < s2_dist:
+            return 2
+        return 3 if s2_dist > 0 else 0
+
+    apexes = _find_corner_apexes(grid, b["speed"])
+    n = len(grid)
+    corners = []
+    for ci, apex in enumerate(apexes):
+        prev_apex = apexes[ci - 1] if ci > 0 else 0
+        next_apex = apexes[ci + 1] if ci + 1 < len(apexes) else n - 1
+        start = (prev_apex + apex) // 2 if ci > 0 else max(apex - 60, 0)
+        end = (apex + next_apex) // 2 if ci + 1 < len(apexes) else min(apex + 60, n - 1)
+
+        def brake_point(ch) -> float:
+            zone = np.where(ch["brake"][start:apex + 1] > 0.4)[0]
+            return float(grid[start + zone[0]]) if len(zone) else -1.0
+
+        def throttle_on(ch) -> float:
+            zone = np.where(ch["throttle"][apex:end + 1] > 0.9)[0]
+            return float(grid[apex + zone[0]]) if len(zone) else -1.0
+
+        loss = float(delta[end] - delta[start])
+        apex_kmh_you = float(a["speed"][max(start, apex - 6):apex + 7].min() * 3.6)
+        apex_kmh_ref = float(b["speed"][max(start, apex - 6):apex + 7].min() * 3.6)
+        bp_you, bp_ref = brake_point(a), brake_point(b)
+        to_you, to_ref = throttle_on(a), throttle_on(b)
+
+        advice = []
+        if loss > 0.03:
+            if bp_you > 0 and bp_ref > 0 and bp_you - bp_ref < -12:
+                advice.append(f"braking {abs(bp_you - bp_ref):.0f}m earlier than the reference")
+            elif bp_you > 0 and bp_ref > 0 and bp_you - bp_ref > 12:
+                advice.append(f"braking {bp_you - bp_ref:.0f}m later — likely overshooting")
+            if apex_kmh_you < apex_kmh_ref - 3:
+                advice.append(f"carrying {apex_kmh_ref - apex_kmh_you:.0f} km/h less at the apex")
+            if to_you > 0 and to_ref > 0 and to_you - to_ref > 12:
+                advice.append(f"back to full throttle {to_you - to_ref:.0f}m later")
+            if not advice:
+                advice.append("time drips away through the whole corner — check your line")
+        elif loss < -0.03:
+            advice.append("faster than the reference here — this corner is a strength")
+
+        corners.append({
+            "n": ci + 1,
+            "apex_dist": round(float(grid[apex]), 1),
+            "apex_pct": round(float(grid[apex]) / max_d * 100, 1),
+            "sector": sector_of(float(grid[apex])),
+            "loss": round(loss, 3),
+            "apex_kmh_you": round(apex_kmh_you, 1),
+            "apex_kmh_ref": round(apex_kmh_ref, 1),
+            "brake_you": round(bp_you, 1),
+            "brake_ref": round(bp_ref, 1),
+            "advice": "; ".join(advice) if advice else "even with the reference",
+        })
+
+    worst = sorted([c for c in corners if c["loss"] > 0.03],
+                   key=lambda c: -c["loss"])[:3]
+    return {
+        "corners": corners,
+        "worst": [c["n"] for c in worst],
+        "s1_dist": round(s1_dist, 1),
+        "s2_dist": round(s2_dist, 1),
+        "total_delta": round(float(delta[-1]), 3),
+        "corner_loss_total": round(sum(c["loss"] for c in corners if c["loss"] > 0), 3),
+    }
+
+
 def lap_channels_payload(channels: dict[str, np.ndarray]) -> dict:
     """Single-lap payload resampled to the grid (for viewing one lap)."""
     max_d = float(channels["lap_dist"].max())

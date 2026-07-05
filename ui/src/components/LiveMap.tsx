@@ -65,7 +65,8 @@ export default function LiveMap({ frame, refLine }: Props) {
     const ox = (cssW - (b.maxX - b.minX) * scale) / 2;
     const oz = (cssH - (b.maxZ - b.minZ) * scale) / 2;
     const px = (x: number) => ox + (x - b.minX) * scale;
-    const pz = (z: number) => oz + (z - b.minZ) * scale;
+    // canvas y grows downward; flip z so the circuit isn't mirrored
+    const pz = (z: number) => oz + (b.maxZ - z) * scale;
 
     // racing line (PB lap)
     if (refLine && refLine.pos_x.length > 1) {

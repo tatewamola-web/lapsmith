@@ -210,6 +210,21 @@ def create_app(adapter_name: str = "sim", data_dir: Path = Path("data")) -> Fast
         payload["ref_meta"] = engine.store.get_lap(ref)
         return payload
 
+    @app.get("/api/insights")
+    def insights(lap: int, ref: int):
+        a = engine.store.load_channels(lap)
+        b = engine.store.load_channels(ref)
+        ref_meta = engine.store.get_lap(ref)
+        if a is None or b is None or ref_meta is None:
+            return Response(status_code=404)
+        # analysis wants rF2-style cumulative s2 (s1 + s2 splits)
+        s1 = ref_meta.get("s1") or -1.0
+        s2 = (ref_meta["s1"] + ref_meta["s2"]) if ref_meta.get("s1") and ref_meta.get("s2") else -1.0
+        payload = analysis.insights(a, b, ref_s1=s1, ref_s2=s2)
+        if payload is None:
+            return Response(status_code=422)
+        return payload
+
     # -- interchange -----------------------------------------------------
 
     @app.get("/api/laps/{lap_id}/export")

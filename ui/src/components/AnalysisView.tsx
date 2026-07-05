@@ -1,6 +1,6 @@
 // Analysis: lap library sidebar + comparison charts.
 
-import type { ComparePayload, LapMeta } from "../api";
+import type { ComparePayload, Insights, LapMeta } from "../api";
 import { fmtTime } from "../api";
 import LapList from "./LapList";
 import TrackMap from "./TrackMap";
@@ -11,14 +11,56 @@ interface Props {
   youId: number | null;
   refId: number | null;
   cmp: ComparePayload | null;
+  insights: Insights | null;
   sessionFilter: number | null;
   onPick: (id: number, slot: "you" | "ref") => void;
   onDelete: (id: number) => void;
   onClearFilter: () => void;
 }
 
+function CornerPanel({ ins }: { ins: Insights }) {
+  return (
+    <div className="panel">
+      <h3>
+        Corner Analysis · {ins.corners.length} corners detected ·{" "}
+        {ins.corner_loss_total > 0 ? `${ins.corner_loss_total.toFixed(2)}s recoverable` : "no losses found"}
+      </h3>
+      <table className="corner-table">
+        <thead>
+          <tr>
+            <th>T#</th>
+            <th>At</th>
+            <th>Sector</th>
+            <th>Loss</th>
+            <th>Apex (you/ref)</th>
+            <th>What's happening</th>
+          </tr>
+        </thead>
+        <tbody>
+          {ins.corners.map((c) => (
+            <tr key={c.n} className={ins.worst.includes(c.n) ? "worst" : ""}>
+              <td className="num">T{c.n}</td>
+              <td className="num">{c.apex_pct.toFixed(0)}%</td>
+              <td className="num">{c.sector > 0 ? `S${c.sector}` : "–"}</td>
+              <td className={`num ${c.loss > 0.03 ? "loss-pos" : c.loss < -0.03 ? "loss-neg" : ""}`}>
+                {c.loss >= 0 ? "+" : ""}
+                {c.loss.toFixed(3)}
+              </td>
+              <td className="num">
+                {c.apex_kmh_you.toFixed(0)} / {c.apex_kmh_ref.toFixed(0)} km/h
+              </td>
+              <td className="advice">{c.advice}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <div className="hint">worst corners highlighted · At = % of lap · loss is time vs reference across that corner</div>
+    </div>
+  );
+}
+
 export default function AnalysisView({
-  laps, youId, refId, cmp, sessionFilter, onPick, onDelete, onClearFilter,
+  laps, youId, refId, cmp, insights, sessionFilter, onPick, onDelete, onClearFilter,
 }: Props) {
   const finalDelta = cmp ? cmp.delta[cmp.delta.length - 1] : null;
 
@@ -74,6 +116,7 @@ export default function AnalysisView({
                   <h3>Steering</h3>
                   <SteeringChart cmp={cmp} />
                 </div>
+                {insights && insights.corners.length > 0 && <CornerPanel ins={insights} />}
               </div>
               <div>
                 <div className="panel">
@@ -88,6 +131,7 @@ export default function AnalysisView({
                     <div><span style={{ color: "var(--loss)" }}>━</span> losing time</div>
                     <div><span style={{ color: "var(--gain)" }}>━</span> gaining time</div>
                   </div>
+                  <div className="hint">charts: drag to zoom · double-click to reset</div>
                 </div>
               </div>
             </div>

@@ -115,6 +115,34 @@ export async function deleteLap(id: number): Promise<void> {
   await fetch(`/api/laps/${id}`, { method: "DELETE" });
 }
 
+export interface CornerInsight {
+  n: number;
+  apex_dist: number;
+  apex_pct: number;
+  sector: number;
+  loss: number;
+  apex_kmh_you: number;
+  apex_kmh_ref: number;
+  brake_you: number;
+  brake_ref: number;
+  advice: string;
+}
+
+export interface Insights {
+  corners: CornerInsight[];
+  worst: number[];
+  s1_dist: number;
+  s2_dist: number;
+  total_delta: number;
+  corner_loss_total: number;
+}
+
+export async function getInsights(lap: number, ref: number): Promise<Insights> {
+  const r = await fetch(`/api/insights?lap=${lap}&ref=${ref}`);
+  if (!r.ok) throw new Error(`insights failed: ${r.status}`);
+  return r.json();
+}
+
 export function fmtDate(iso: string): string {
   const d = new Date(iso);
   return d.toLocaleString(undefined, {

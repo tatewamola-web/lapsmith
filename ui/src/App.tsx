@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ComparePayload,
+  Insights,
   LapMeta,
   LiveFrame,
   SessionMeta,
   Status,
   deleteLap,
   getCompare,
+  getInsights,
   getLaps,
   getSessions,
   getStatus,
@@ -27,6 +29,7 @@ export default function App() {
   const [youId, setYouId] = useState<number | null>(null);
   const [refId, setRefId] = useState<number | null>(null);
   const [cmp, setCmp] = useState<ComparePayload | null>(null);
+  const [insights, setInsights] = useState<Insights | null>(null);
   const [frame, setFrame] = useState<LiveFrame | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const autoPicked = useRef(false);
@@ -75,12 +78,16 @@ export default function App() {
   useEffect(() => {
     if (youId == null || refId == null || youId === refId) {
       setCmp(null);
+      setInsights(null);
       return;
     }
     let stale = false;
     getCompare(youId, refId)
       .then((c) => !stale && setCmp(c))
       .catch(() => !stale && setCmp(null));
+    getInsights(youId, refId)
+      .then((i) => !stale && setInsights(i))
+      .catch(() => !stale && setInsights(null));
     return () => {
       stale = true;
     };
@@ -125,10 +132,16 @@ export default function App() {
           </span>
         )}
         <div className="header-right">
-          <div className={`status-dot ${status?.live ? "live" : ""}`} />
-          <span className="status-label">
-            {status?.live ? `LIVE · ${status.adapter}` : status ? "engine idle" : "engine offline"}
-          </span>
+          <div className={`engine-state ${status?.live ? "rec" : status?.connected ? "waiting" : ""}`}>
+            <div className="dot" />
+            {status?.live
+              ? "RECORDING"
+              : status?.connected
+                ? "WAITING FOR GAME"
+                : status
+                  ? "WAITING FOR GAME"
+                  : "ENGINE OFFLINE"}
+          </div>
           <div className="menu-wrap">
             <button className="menu-btn" onClick={() => setMenuOpen(!menuOpen)}>☰</button>
             {menuOpen && (
@@ -153,6 +166,7 @@ export default function App() {
             youId={youId}
             refId={refId}
             cmp={cmp}
+            insights={insights}
             sessionFilter={sessionFilter}
             onPick={onPick}
             onDelete={onDelete}

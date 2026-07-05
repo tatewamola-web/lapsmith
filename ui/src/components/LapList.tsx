@@ -33,46 +33,37 @@ export default function LapList({
           valid only
         </button>
       </div>
-      <div className="laplist-scroll">
-        <table className="laplist">
-          <thead>
-            <tr>
-              <th>#</th>
-              <th>Time</th>
-              <th>S1</th>
-              <th>S2</th>
-              <th>S3</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {shown.map((lap) => (
-              <tr key={lap.id} className={lap.valid ? "" : "invalid"}>
-                <td>
-                  {lap.lap_number}
-                  {lap.is_pb && <span className="badge pb">PB</span>}
-                  {lap.source === "imported" && <span className="badge imported">IMP</span>}
-                  {!lap.valid && <span className="badge cut">INV</span>}
-                </td>
-                <td className="time">{fmtTime(lap.lap_time)}</td>
-                <td>{lap.s1 != null ? lap.s1.toFixed(2) : "–"}</td>
-                <td>{lap.s2 != null ? lap.s2.toFixed(2) : "–"}</td>
-                <td>{lap.s3 != null ? lap.s3.toFixed(2) : "–"}</td>
-                <td>
+      <div className="lap-rows">
+        {shown.map((lap) => {
+          const sel = youId === lap.id ? "sel-you" : refId === lap.id ? "sel-ref" : "";
+          return (
+            <div
+              key={lap.id}
+              className={`lap-row ${lap.valid ? "" : "invalid"} ${sel}`}
+              onClick={() => onPick(lap.id, "you")}
+              title="Click to analyze this lap (A)"
+            >
+              <div className="lap-row-main">
+                <span className="lapno">L{lap.lap_number}</span>
+                <span className="laptime">{fmtTime(lap.lap_time)}</span>
+                {lap.is_pb && <span className="badge pb">PB</span>}
+                {lap.source === "imported" && <span className="badge imported">IMP</span>}
+                {!lap.valid && <span className="badge cut">INV</span>}
+                <span className="lap-actions" onClick={(e) => e.stopPropagation()}>
                   <button
                     className={`pick ${youId === lap.id ? "on-you" : ""}`}
                     title="Analyze this lap"
                     onClick={() => onPick(lap.id, "you")}
                   >
                     A
-                  </button>{" "}
+                  </button>
                   <button
                     className={`pick ${refId === lap.id ? "on-ref" : ""}`}
                     title="Use as reference lap"
                     onClick={() => onPick(lap.id, "ref")}
                   >
                     R
-                  </button>{" "}
+                  </button>
                   <button
                     className="pick danger"
                     title="Delete lap"
@@ -82,11 +73,16 @@ export default function LapList({
                   >
                     ✕
                   </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+                </span>
+              </div>
+              <div className="lap-row-sectors">
+                {lap.s1 != null && lap.s2 != null && lap.s3 != null
+                  ? `${lap.s1.toFixed(2)} · ${lap.s2.toFixed(2)} · ${lap.s3.toFixed(2)}`
+                  : "no sector data"}
+              </div>
+            </div>
+          );
+        })}
       </div>
     </div>
   );

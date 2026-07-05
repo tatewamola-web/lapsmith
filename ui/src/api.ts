@@ -32,7 +32,7 @@ export interface ComparePayload {
   delta: number[];
   lap: ChannelSet;
   ref: ChannelSet;
-  map: { x: number[]; z: number[] };
+  map: { x: number[]; z: number[]; you_x?: number[]; you_z?: number[] };
   lap_meta: LapMeta;
   ref_meta: LapMeta;
 }
@@ -61,6 +61,7 @@ export interface SessionMeta {
   track: string;
   car: string;
   session_type: string;
+  source?: string;
   laps: number;
   valid_laps: number;
   best_lap: number | null;

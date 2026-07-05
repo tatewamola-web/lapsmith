@@ -200,6 +200,18 @@ html, body, #root {
 }
 .toggle.on { color: var(--you); border-color: var(--you); }
 
+.combo-select {
+  width: 100%;
+  margin-top: 6px;
+  background: var(--surface-2);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-family: var(--mono);
+  font-size: 11px;
+  padding: 4px 6px;
+}
+
 /* lap rows: two-line cards, no horizontal scrolling ever */
 .lap-rows { display: flex; flex-direction: column; }
 .lap-row {
@@ -404,6 +416,30 @@ html, body, #root {
 .session-card .stat { font-family: var(--mono); font-size: 12px; color: var(--text-dim); text-align: right; }
 .session-card .stat b { display: block; color: var(--text); font-size: 15px; font-weight: 600; }
 .session-card .stat b.gold { color: var(--pb); }
+
+.track-group { margin-bottom: 26px; }
+.track-group-head {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  padding: 4px 2px 8px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 10px;
+}
+.track-group-head > b { font-size: 15px; }
+.track-group-head .meta { color: var(--text-faint); font-size: 12px; }
+.track-group-head .best { margin-left: auto; color: var(--text-dim); font-size: 12px; font-family: var(--mono); }
+.track-group-head .best b { color: var(--pb); font-size: 14px; }
+
+.session-card .stype {
+  display: block;
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  font-family: var(--mono);
+}
+.stype.race { color: var(--loss); }
+.stype.qualifying { color: var(--you); }
+.stype.practice { color: var(--text-dim); }
 
 /* -- corner insights -------------------------------------------------------------- */
 

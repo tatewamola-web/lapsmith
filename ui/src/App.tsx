@@ -26,6 +26,7 @@ export default function App() {
   const [laps, setLaps] = useState<LapMeta[]>([]);
   const [sessions, setSessions] = useState<SessionMeta[]>([]);
   const [sessionFilter, setSessionFilter] = useState<number | null>(null);
+  const [combo, setCombo] = useState<string>("");  // "" = not chosen yet
   const [youId, setYouId] = useState<number | null>(null);
   const [refId, setRefId] = useState<number | null>(null);
   const [cmp, setCmp] = useState<ComparePayload | null>(null);
@@ -48,6 +49,13 @@ export default function App() {
         setStatus(s);
         setLaps(l);
         setSessions(ses);
+        // default the combo filter to what's being driven (or latest lap)
+        setCombo((cur) => {
+          if (cur) return cur;
+          if (s.session?.track) return `${s.session.track}|${s.session.car}`;
+          if (l.length > 0) return `${l[0].track}|${l[0].car}`;
+          return cur;
+        });
         if (!autoPicked.current && l.length > 0) {
           // only laps with telemetry channels can be charted
           const valid = l.filter((x) => x.valid && x.has_data !== false);
@@ -115,6 +123,22 @@ export default function App() {
 
   const session = status?.session;
 
+  // distinct track+car combos across the library, most recent first
+  const combos: { key: string; label: string }[] = [];
+  const seen = new Set<string>();
+  for (const l of laps) {
+    const key = `${l.track}|${l.car}`;
+    if (!seen.has(key)) {
+      seen.add(key);
+      const shortCar = l.car.length > 24 ? l.car.slice(0, 22) + "…" : l.car;
+      combos.push({ key, label: `${l.track} · ${shortCar}` });
+    }
+  }
+  const filteredLaps =
+    sessionFilter != null || combo === "all" || !combo
+      ? laps
+      : laps.filter((l) => `${l.track}|${l.car}` === combo);
+
   return (
     <div className="app">
       <header className="header">
@@ -163,12 +187,15 @@ export default function App() {
         {tab === "live" && <LiveView frame={frame} status={status} />}
         {tab === "analysis" && (
           <AnalysisView
-            laps={laps}
+            laps={filteredLaps}
             youId={youId}
             refId={refId}
             cmp={cmp}
             insights={insights}
             sessionFilter={sessionFilter}
+            combo={combo || "all"}
+            combos={combos}
+            onCombo={setCombo}
             onPick={onPick}
             onDelete={onDelete}
             onClearFilter={() => setSessionFilter(null)}

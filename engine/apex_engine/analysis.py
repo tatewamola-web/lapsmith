@@ -83,11 +83,13 @@ def compare(lap: dict[str, np.ndarray], ref: dict[str, np.ndarray]) -> Optional[
             "steering": round3(b["steering"]),
             "gear": [int(v) for v in np.round(b["gear"])],
         },
-        # Track map from the reference lap's world position, with the
-        # delta at each point so the UI can color where time is lost.
+        # World positions for both laps: the reference line colors the
+        # gain/loss map, and the pair together is the racing-line overlay.
         "map": {
             "x": round3(b["pos_x"]),
             "z": round3(b["pos_z"]),
+            "you_x": round3(a["pos_x"]),
+            "you_z": round3(a["pos_z"]),
         },
     }
 

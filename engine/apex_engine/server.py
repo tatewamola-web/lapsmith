@@ -60,6 +60,12 @@ class Engine:
             return self.latest, self.session, self.connected
 
     def _on_lap(self, lap):
+        # Session rows are created lazily on the first stored lap, so idle
+        # engine restarts don't litter the library with empty sessions.
+        if self.session_id is None:
+            self.session_id = self.store.start_session(lap.context)
+            logger.info("session #%d: %s / %s", self.session_id,
+                        lap.context.track, lap.context.car)
         # Store every completed lap, even invalid ones (flagged, filtered in UI).
         lap_id = self.store.save_lap(lap, session_id=self.session_id)
         self.laps_recorded += 1
@@ -85,16 +91,12 @@ class Engine:
                 if now >= session_refresh:
                     ctx = adapter.session()
                     session_refresh = now + 5.0
-                    # New sitting at the wheel = new session row (track or
-                    # car change, or first data of this engine run).
+                    # Track/car change = the next lap belongs to a new session.
                     if ctx.track and (
-                        self.session_id is None
-                        or ctx.track != self.session.track
+                        ctx.track != self.session.track
                         or ctx.car != self.session.car
                     ):
-                        self.session_id = self.store.start_session(ctx)
-                        logger.info("session #%d: %s / %s", self.session_id,
-                                    ctx.track, ctx.car)
+                        self.session_id = None
                     with self._lock:
                         self.session = ctx
                     self.recorder.set_context(ctx)

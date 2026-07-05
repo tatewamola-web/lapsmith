@@ -7,20 +7,24 @@ interface Props {
   youId: number | null;
   refId: number | null;
   sessionFilter: number | null;
+  combo: string;                       // "track|car" or "all"
+  combos: { key: string; label: string }[];
+  onCombo: (key: string) => void;
   onPick: (id: number, slot: "you" | "ref") => void;
   onDelete: (id: number) => void;
   onClearFilter: () => void;
 }
 
 export default function LapList({
-  laps, youId, refId, sessionFilter, onPick, onDelete, onClearFilter,
+  laps, youId, refId, sessionFilter, combo, combos, onCombo,
+  onPick, onDelete, onClearFilter,
 }: Props) {
   const [validOnly, setValidOnly] = useState(false);
   const shown = validOnly ? laps.filter((l) => l.valid) : laps;
 
   return (
     <div>
-      <div className="laplist-head">
+      <div className="laplist-head" style={{ flexWrap: "wrap" }}>
         <span>
           Laps · {shown.length}
           {sessionFilter != null && (
@@ -32,6 +36,14 @@ export default function LapList({
         <button className={`toggle ${validOnly ? "on" : ""}`} onClick={() => setValidOnly(!validOnly)}>
           valid only
         </button>
+        {sessionFilter == null && (
+          <select className="combo-select" value={combo} onChange={(e) => onCombo(e.target.value)}>
+            {combos.map((c) => (
+              <option key={c.key} value={c.key}>{c.label}</option>
+            ))}
+            <option value="all">All laps · every track</option>
+          </select>
+        )}
       </div>
       <div className="lap-rows">
         {shown.map((lap) => {

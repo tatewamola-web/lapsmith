@@ -4,8 +4,14 @@ import { useEffect, useState } from "react";
 import type { ComparePayload, IdealLap, Insights, LapMeta } from "../api";
 import { fmtTime, getIdeal } from "../api";
 import LapList from "./LapList";
+import RacingLine from "./RacingLine";
 import TrackMap from "./TrackMap";
 import { ChartMarkers, DeltaChart, PedalChart, SpeedChart, SteeringChart } from "./Charts";
+
+/** "T4-5 Variante della Roggia" -> "T4-5"; unnamed corners stay sequential. */
+export function officialLabel(name: string, n: number): string {
+  return name ? name.split(" ")[0] : `T${n}`;
+}
 
 interface Props {
   laps: LapMeta[];
@@ -14,6 +20,9 @@ interface Props {
   cmp: ComparePayload | null;
   insights: Insights | null;
   sessionFilter: number | null;
+  combo: string;
+  combos: { key: string; label: string }[];
+  onCombo: (key: string) => void;
   onPick: (id: number, slot: "you" | "ref") => void;
   onDelete: (id: number) => void;
   onClearFilter: () => void;
@@ -93,7 +102,8 @@ function CornerPanel({ ins }: { ins: Insights }) {
 }
 
 export default function AnalysisView({
-  laps, youId, refId, cmp, insights, sessionFilter, onPick, onDelete, onClearFilter,
+  laps, youId, refId, cmp, insights, sessionFilter, combo, combos, onCombo,
+  onPick, onDelete, onClearFilter,
 }: Props) {
   const finalDelta = cmp ? cmp.delta[cmp.delta.length - 1] : null;
   const [ideal, setIdeal] = useState<IdealLap | null>(null);
@@ -122,7 +132,7 @@ export default function AnalysisView({
             { pct: (insights.s1_dist / maxDist) * 100, label: "S1|S2" },
             { pct: (insights.s2_dist / maxDist) * 100, label: "S2|S3" },
           ].filter((s) => s.pct > 0),
-          corners: insights.corners.map((c) => ({ pct: c.apex_pct, label: `T${c.n}` })),
+          corners: insights.corners.map((c) => ({ pct: c.apex_pct, label: officialLabel(c.name, c.n) })),
         }
       : undefined;
 
@@ -134,6 +144,9 @@ export default function AnalysisView({
           youId={youId}
           refId={refId}
           sessionFilter={sessionFilter}
+          combo={combo}
+          combos={combos}
+          onCombo={onCombo}
           onPick={onPick}
           onDelete={onDelete}
           onClearFilter={onClearFilter}
@@ -184,6 +197,10 @@ export default function AnalysisView({
                 <div className="panel">
                   <h3>Track · time gain/loss</h3>
                   <TrackMap cmp={cmp} insights={insights} />
+                </div>
+                <div className="panel">
+                  <h3>Racing Line · A vs R</h3>
+                  <RacingLine cmp={cmp} insights={insights} />
                 </div>
                 {ideal && <IdealPanel ideal={ideal} />}
                 <div className="panel">

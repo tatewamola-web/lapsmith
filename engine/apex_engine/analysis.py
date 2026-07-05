@@ -21,7 +21,18 @@ GRID_STEP = 4.0  # meters between comparison points
 
 
 def _monotonic(dist: np.ndarray, *channels: np.ndarray):
-    """Strip samples where lap_dist goes backwards (grid/jump noise)."""
+    """Strip samples where lap_dist goes backwards (grid/jump noise).
+
+    Scoring-lag guard: sims that publish lap distance at a low rate (LMU's
+    scoring buffer is ~5 Hz) can leave the previous lap's near-full distance
+    on the first frames after the line. Without trimming, the cummax filter
+    below would discard the entire lap. Start from the minimum distance seen
+    in the first ~2 s of samples.
+    """
+    lead = min(len(dist), 120)
+    start = int(np.argmin(dist[:lead]))
+    dist = dist[start:]
+    channels = tuple(c[start:] for c in channels)
     keep = np.maximum.accumulate(dist) <= dist
     # ensure strictly increasing for interp
     d = dist[keep]

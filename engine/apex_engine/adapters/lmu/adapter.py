@@ -27,7 +27,11 @@ _SESSION_TYPES = {0: "test", 1: "practice", 2: "practice", 3: "practice",
 
 
 def _decode(raw: bytes) -> str:
-    return raw.decode("iso-8859-1", errors="replace").rstrip("\x00").strip()
+    raw = raw.split(b"\x00", 1)[0]
+    try:
+        return raw.decode("utf-8").strip()
+    except UnicodeDecodeError:
+        return raw.decode("iso-8859-1", errors="replace").strip()
 
 
 class LMUAdapter(BaseAdapter):

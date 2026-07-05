@@ -36,6 +36,14 @@ CREATE TABLE IF NOT EXISTS laps (
     driver TEXT NOT NULL DEFAULT 'me'
 );
 CREATE INDEX IF NOT EXISTS idx_laps_combo ON laps (game, track, car, valid, lap_time);
+CREATE TABLE IF NOT EXISTS sessions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    started_at TEXT NOT NULL,
+    game TEXT NOT NULL,
+    track TEXT NOT NULL,
+    car TEXT NOT NULL,
+    session_type TEXT
+);
 """
 
 
@@ -47,6 +55,48 @@ class LapStore:
         self.db_path = self.root / "apex.db"
         with self._conn() as con:
             con.executescript(SCHEMA)
+            self._migrate(con)
+
+    def _migrate(self, con: sqlite3.Connection) -> None:
+        cols = {r["name"] for r in con.execute("PRAGMA table_info(laps)")}
+        if "session_id" not in cols:
+            con.execute("ALTER TABLE laps ADD COLUMN session_id INTEGER")
+        # Backfill: pre-session laps get one session per game/track/car combo.
+        orphans = con.execute(
+            "SELECT game, track, car, session_type, MIN(created_at) AS t0"
+            " FROM laps WHERE session_id IS NULL GROUP BY game, track, car"
+        ).fetchall()
+        for o in orphans:
+            cur = con.execute(
+                "INSERT INTO sessions (started_at, game, track, car, session_type)"
+                " VALUES (?,?,?,?,?)",
+                (o["t0"], o["game"], o["track"], o["car"], o["session_type"]),
+            )
+            con.execute(
+                "UPDATE laps SET session_id=? WHERE session_id IS NULL"
+                " AND game=? AND track=? AND car=?",
+                (cur.lastrowid, o["game"], o["track"], o["car"]),
+            )
+
+    def start_session(self, ctx: SessionContext) -> int:
+        with self._conn() as con:
+            cur = con.execute(
+                "INSERT INTO sessions (started_at, game, track, car, session_type)"
+                " VALUES (?,?,?,?,?)",
+                (datetime.now(timezone.utc).isoformat(), ctx.game, ctx.track,
+                 ctx.car, ctx.session_type),
+            )
+            return cur.lastrowid
+
+    def list_sessions(self) -> list[dict]:
+        with self._conn() as con:
+            rows = con.execute(
+                "SELECT s.*, COUNT(l.id) AS laps, COALESCE(SUM(l.valid), 0) AS valid_laps,"
+                " MIN(CASE WHEN l.valid=1 THEN l.lap_time END) AS best_lap"
+                " FROM sessions s LEFT JOIN laps l ON l.session_id = s.id"
+                " GROUP BY s.id HAVING COUNT(l.id) > 0 ORDER BY s.id DESC"
+            ).fetchall()
+        return [dict(r) for r in rows]
 
     def _conn(self) -> sqlite3.Connection:
         con = sqlite3.connect(self.db_path)
@@ -56,18 +106,18 @@ class LapStore:
     # -- write ---------------------------------------------------------
 
     def save_lap(self, lap: LapResult, source: str = "recorded",
-                 driver: str = "me") -> int:
+                 driver: str = "me", session_id: Optional[int] = None) -> int:
         s = lap.sector_times or [None, None, None]
         with self._conn() as con:
             cur = con.execute(
                 "INSERT INTO laps (created_at, game, track, car, session_type,"
-                " lap_number, lap_time, s1, s2, s3, valid, source, driver)"
-                " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                " lap_number, lap_time, s1, s2, s3, valid, source, driver, session_id)"
+                " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                 (
                     datetime.now(timezone.utc).isoformat(),
                     lap.context.game, lap.context.track, lap.context.car,
                     lap.context.session_type, lap.lap_number, lap.lap_time,
-                    s[0], s[1], s[2], int(lap.valid), source, driver,
+                    s[0], s[1], s[2], int(lap.valid), source, driver, session_id,
                 ),
             )
             lap_id = cur.lastrowid
@@ -84,10 +134,12 @@ class LapStore:
     # -- read ----------------------------------------------------------
 
     def list_laps(self, track: Optional[str] = None, car: Optional[str] = None,
-                  game: Optional[str] = None) -> list[dict]:
+                  game: Optional[str] = None,
+                  session_id: Optional[int] = None) -> list[dict]:
         q = "SELECT * FROM laps WHERE 1=1"
         args: list = []
-        for col, val in (("track", track), ("car", car), ("game", game)):
+        for col, val in (("track", track), ("car", car), ("game", game),
+                         ("session_id", session_id)):
             if val:
                 q += f" AND {col}=?"
                 args.append(val)

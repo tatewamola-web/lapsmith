@@ -3,37 +3,48 @@ import {
   ComparePayload,
   LapMeta,
   LiveFrame,
+  SessionMeta,
   Status,
-  fmtTime,
+  deleteLap,
   getCompare,
   getLaps,
+  getSessions,
   getStatus,
   openLive,
 } from "./api";
-import LapList from "./components/LapList";
-import LiveStrip from "./components/LiveStrip";
-import TrackMap from "./components/TrackMap";
-import { DeltaChart, PedalChart, SpeedChart, SteeringChart } from "./components/Charts";
+import AnalysisView from "./components/AnalysisView";
+import LiveView from "./components/LiveView";
+import SessionsView from "./components/SessionsView";
+
+type Tab = "live" | "analysis" | "sessions";
 
 export default function App() {
+  const [tab, setTab] = useState<Tab>("analysis");
   const [status, setStatus] = useState<Status | null>(null);
   const [laps, setLaps] = useState<LapMeta[]>([]);
+  const [sessions, setSessions] = useState<SessionMeta[]>([]);
+  const [sessionFilter, setSessionFilter] = useState<number | null>(null);
   const [youId, setYouId] = useState<number | null>(null);
   const [refId, setRefId] = useState<number | null>(null);
   const [cmp, setCmp] = useState<ComparePayload | null>(null);
   const [frame, setFrame] = useState<LiveFrame | null>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
   const autoPicked = useRef(false);
 
-  // status + lap list poll
+  // status + lap list + sessions poll
   useEffect(() => {
     let stop = false;
     const tick = async () => {
       try {
-        const [s, l] = await Promise.all([getStatus(), getLaps()]);
+        const [s, l, ses] = await Promise.all([
+          getStatus(),
+          getLaps(sessionFilter),
+          getSessions(),
+        ]);
         if (stop) return;
         setStatus(s);
         setLaps(l);
-        // First data arrival: auto-select latest valid lap vs PB.
+        setSessions(ses);
         if (!autoPicked.current && l.length > 0) {
           const valid = l.filter((x) => x.valid);
           if (valid.length >= 2) {
@@ -54,9 +65,10 @@ export default function App() {
       stop = true;
       clearInterval(h);
     };
-  }, []);
+  }, [sessionFilter]);
 
-  // live telemetry
+  // live telemetry; auto-switch to Live tab when driving starts is left to
+  // the user — telemetry keeps flowing regardless of the visible tab.
   useEffect(() => openLive(setFrame), []);
 
   // comparison fetch
@@ -80,96 +92,74 @@ export default function App() {
     else setRefId((cur) => (cur === id ? null : id));
   }, []);
 
+  const onDelete = useCallback(async (id: number) => {
+    await deleteLap(id);
+    setYouId((cur) => (cur === id ? null : cur));
+    setRefId((cur) => (cur === id ? null : cur));
+    setLaps((cur) => cur.filter((l) => l.id !== id));
+  }, []);
+
+  const openSession = useCallback((id: number) => {
+    setSessionFilter(id);
+    autoPicked.current = false; // re-auto-pick within this session
+    setTab("analysis");
+  }, []);
+
   const session = status?.session;
-  const finalDelta = cmp ? cmp.delta[cmp.delta.length - 1] : null;
 
   return (
     <div className="app">
       <header className="header">
         <span className="brand">APEX</span>
+        <nav className="tabs">
+          {(["live", "analysis", "sessions"] as Tab[]).map((t) => (
+            <button key={t} className={`tab ${tab === t ? "active" : ""}`} onClick={() => setTab(t)}>
+              {t.toUpperCase()}
+            </button>
+          ))}
+        </nav>
         {session && session.track && (
           <span className="session">
             <span><b>{session.track}</b></span>
             <span>{session.car}</span>
-            <span>{session.session_type}</span>
           </span>
         )}
-        <div className={`status-dot ${status?.live ? "live" : ""}`} />
-        <span className="status-label">
-          {status?.live ? `LIVE · ${status.adapter}` : status?.connected ? "connected" : "offline"}
-        </span>
+        <div className="header-right">
+          <div className={`status-dot ${status?.live ? "live" : ""}`} />
+          <span className="status-label">
+            {status?.live ? `LIVE · ${status.adapter}` : status ? "engine idle" : "engine offline"}
+          </span>
+          <div className="menu-wrap">
+            <button className="menu-btn" onClick={() => setMenuOpen(!menuOpen)}>☰</button>
+            {menuOpen && (
+              <div className="menu-pop" onMouseLeave={() => setMenuOpen(false)}>
+                <div className="item"><span>Adapter</span><b>{status?.adapter ?? "–"}</b></div>
+                <div className="item"><span>Engine</span><b>{status ? (status.connected ? "connected" : "waiting") : "offline"}</b></div>
+                <div className="item"><span>Laps this run</span><b>{status?.laps_recorded ?? 0}</b></div>
+                <div className="sep" />
+                <div className="item"><span>Data folder</span><b>data\</b></div>
+                <div className="item"><span>Version</span><b>0.2.0</b></div>
+              </div>
+            )}
+          </div>
+        </div>
       </header>
 
       <div className="main">
-        <aside className="sidebar">
-          <LiveStrip frame={frame} />
-          <LapList laps={laps} youId={youId} refId={refId} onPick={onPick} />
-        </aside>
-
-        <main className="content">
-          {cmp ? (
-            <>
-              <div className="compare-head">
-                <span className="you">
-                  LAP {cmp.lap_meta.lap_number} · {fmtTime(cmp.lap_meta.lap_time)}
-                </span>
-                <span className="vs">vs</span>
-                <span className="ref">
-                  {cmp.ref_meta.is_pb ? "PB · " : ""}LAP {cmp.ref_meta.lap_number} ·{" "}
-                  {fmtTime(cmp.ref_meta.lap_time)}
-                </span>
-                {finalDelta != null && (
-                  <span className={`final-delta ${finalDelta >= 0 ? "pos" : "neg"}`}>
-                    {finalDelta >= 0 ? "+" : ""}
-                    {finalDelta.toFixed(3)}s
-                  </span>
-                )}
-              </div>
-
-              <div className="grid-2col">
-                <div>
-                  <div className="panel">
-                    <h3>Time Delta</h3>
-                    <DeltaChart cmp={cmp} />
-                  </div>
-                  <div className="panel">
-                    <h3>Speed</h3>
-                    <SpeedChart cmp={cmp} />
-                  </div>
-                  <div className="panel">
-                    <h3>Throttle / Brake</h3>
-                    <PedalChart cmp={cmp} />
-                  </div>
-                  <div className="panel">
-                    <h3>Steering</h3>
-                    <SteeringChart cmp={cmp} />
-                  </div>
-                </div>
-                <div>
-                  <div className="panel">
-                    <h3>Track · time gain/loss</h3>
-                    <TrackMap cmp={cmp} />
-                  </div>
-                  <div className="panel">
-                    <h3>Legend</h3>
-                    <div style={{ fontSize: 12.5, color: "var(--text-dim)", lineHeight: 1.9 }}>
-                      <div><span style={{ color: "var(--you)" }}>━</span> your lap (A)</div>
-                      <div><span style={{ color: "var(--ref)" }}>━</span> reference lap (R)</div>
-                      <div><span style={{ color: "var(--loss)" }}>━</span> losing time</div>
-                      <div><span style={{ color: "var(--gain)" }}>━</span> gaining time</div>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </>
-          ) : (
-            <div className="placeholder">
-              {laps.length === 0
-                ? "No laps recorded yet. Drive — laps appear here as you complete them."
-                : "Pick a lap to analyze (A) and a reference lap (R) from the list."}
-            </div>
-          )}
-        </main>
+        {tab === "live" && <LiveView frame={frame} status={status} />}
+        {tab === "analysis" && (
+          <AnalysisView
+            laps={laps}
+            youId={youId}
+            refId={refId}
+            cmp={cmp}
+            sessionFilter={sessionFilter}
+            onPick={onPick}
+            onDelete={onDelete}
+            onClearFilter={() => setSessionFilter(null)}
+          />
+        )}
+        {tab === "sessions" && <SessionsView sessions={sessions} onOpen={openSession} />}
       </div>
     </div>
   );

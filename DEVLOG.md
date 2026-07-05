@@ -117,6 +117,33 @@ delta comparison that located a real driving mistake to within a few meters.
 
 ---
 
+## 2026-07-05 — Day 2 (later): The UI grows up
+
+### Feature: sessions, like real telemetry tools
+Laps are now grouped into sessions (one per sitting/track/car, like SimHub
+or LMU's replay list). A `sessions` table joins to laps; existing laps were
+migrated with a backfill that groups them by track/car combo.
+**Why it matters:** first schema migration of the project — changing a live
+database without losing data is a rite of passage.
+
+### Redesign: tabs (Live / Analysis / Sessions), menu, responsive layout
+The single screen became three areas. The live view draws the racing line
+(from your PB lap's position data) with a real-time car dot and trail fed
+by the WebSocket. Charts switched from kilometers to % of lap on the x-axis
+— corners land in the same place visually regardless of track length. The
+sidebar no longer clips off-screen: fluid grid columns with sensible
+minimums, and the layout collapses to one column under 860 px.
+
+### Design choice: the engine serves the UI — no dev tools to run the app
+`npm run build` produces static files; the Python engine serves them at
+http://localhost:8000. One process, one URL, one double-click script
+(`scripts/apex.ps1`). The app has no dependency on any AI tooling or dev
+servers — those were only ever the workbench, not the product.
+**Why it matters:** "works on my machine with 3 terminals open" is not
+shipping. Collapsing the run story to one click is what makes it shareable.
+
+---
+
 ## Design principles that emerged (running list)
 
 1. **Wall off what varies.** One adapter per sim; everything else is shared.

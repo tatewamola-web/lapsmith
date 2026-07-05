@@ -17,7 +17,12 @@
       "PowerShell(& \"engine\\\\.venv\\\\Scripts\\\\python.exe\" \"C:\\\\Users\\\\tatew\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\C--Users-tatew-Sim-Racing-Telemetry-Project\\\\448ade40-c03b-4e4e-86fd-91511d885147\\\\scratchpad\\\\check_laps.py\")",
       "PowerShell(& \"engine\\\\.venv\\\\Scripts\\\\python.exe\" \"C:\\\\Users\\\\tatew\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\C--Users-tatew-Sim-Racing-Telemetry-Project\\\\448ade40-c03b-4e4e-86fd-91511d885147\\\\scratchpad\\\\check_raw.py\")",
       "PowerShell(& \"engine\\\\.venv\\\\Scripts\\\\python.exe\" \"C:\\\\Users\\\\tatew\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\C--Users-tatew-Sim-Racing-Telemetry-Project\\\\448ade40-c03b-4e4e-86fd-91511d885147\\\\scratchpad\\\\debug_delta.py\")",
-      "PowerShell(& \"engine\\\\.venv\\\\Scripts\\\\python.exe\" \"C:\\\\Users\\\\tatew\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\C--Users-tatew-Sim-Racing-Telemetry-Project\\\\448ade40-c03b-4e4e-86fd-91511d885147\\\\scratchpad\\\\check_lap7.py\")"
+      "PowerShell(& \"engine\\\\.venv\\\\Scripts\\\\python.exe\" \"C:\\\\Users\\\\tatew\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\C--Users-tatew-Sim-Racing-Telemetry-Project\\\\448ade40-c03b-4e4e-86fd-91511d885147\\\\scratchpad\\\\check_lap7.py\")",
+      "PowerShell(& \"engine\\\\.venv\\\\Scripts\\\\python.exe\" -c \"import json,urllib.request; laps=json.load\\(urllib.request.urlopen\\('http://127.0.0.1:8000/api/laps',timeout=5\\)\\); pb=[l for l in laps if l['is_pb']]; print\\('PB:', pb[0]['id'], round\\(pb[0]['lap_time'],3\\)\\); print\\('valid laps:', [\\(l['id'], round\\(l['lap_time'],2\\)\\) for l in laps if l['valid']]\\)\")",
+      "PowerShell(curl.exe -s -o NUL -w \"UI: %{http_code}`n\" http://127.0.0.1:5173)",
+      "PowerShell(curl.exe -s -o NUL -w \"localhost: %{http_code}`n\" http://localhost:5173)",
+      "PowerShell(curl.exe -s -o NUL -w \"ipv6: %{http_code}`n\" \"http://[::1]:5173\")",
+      "PowerShell(& \"engine\\\\.venv\\\\Scripts\\\\python.exe\" -c \"import json,urllib.request; s=json.load\\(urllib.request.urlopen\\('http://127.0.0.1:8000/api/status',timeout=5\\)\\); laps=json.load\\(urllib.request.urlopen\\('http://127.0.0.1:8000/api/laps',timeout=5\\)\\); print\\('live:',s['live'],'| total laps:',len\\(laps\\),'| latest id:',laps[0]['id'] if laps else None\\)\")"
     ]
   }
 }

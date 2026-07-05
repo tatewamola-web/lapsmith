@@ -41,6 +41,7 @@ class Engine:
         self.recorder = LapRecorder(on_lap=self._on_lap)
         self.latest: Optional[TelemetryFrame] = None
         self.session: SessionContext = SessionContext()
+        self.session_id: Optional[int] = None
         self.connected = False
         self.laps_recorded = 0
         self._lock = threading.Lock()
@@ -60,7 +61,7 @@ class Engine:
 
     def _on_lap(self, lap):
         # Store every completed lap, even invalid ones (flagged, filtered in UI).
-        lap_id = self.store.save_lap(lap)
+        lap_id = self.store.save_lap(lap, session_id=self.session_id)
         self.laps_recorded += 1
         logger.info("stored lap id=%d time=%.3f valid=%s", lap_id, lap.lap_time, lap.valid)
 
@@ -84,6 +85,16 @@ class Engine:
                 if now >= session_refresh:
                     ctx = adapter.session()
                     session_refresh = now + 5.0
+                    # New sitting at the wheel = new session row (track or
+                    # car change, or first data of this engine run).
+                    if ctx.track and (
+                        self.session_id is None
+                        or ctx.track != self.session.track
+                        or ctx.car != self.session.car
+                    ):
+                        self.session_id = self.store.start_session(ctx)
+                        logger.info("session #%d: %s / %s", self.session_id,
+                                    ctx.track, ctx.car)
                     with self._lock:
                         self.session = ctx
                     self.recorder.set_context(ctx)
@@ -153,9 +164,19 @@ def create_app(adapter_name: str = "sim", data_dir: Path = Path("data")) -> Fast
 
     # -- lap library ---------------------------------------------------
 
+    @app.get("/api/sessions")
+    def sessions():
+        return engine.store.list_sessions()
+
     @app.get("/api/laps")
-    def laps(track: Optional[str] = None, car: Optional[str] = None):
-        return engine.store.list_laps(track=track, car=car)
+    def laps(track: Optional[str] = None, car: Optional[str] = None,
+             session: Optional[int] = None):
+        return engine.store.list_laps(track=track, car=car, session_id=session)
+
+    @app.get("/api/pb")
+    def pb(game: str, track: str, car: str):
+        lap = engine.store.personal_best(game, track, car)
+        return lap if lap else Response(status_code=404)
 
     @app.get("/api/laps/{lap_id}")
     def lap_meta(lap_id: int):
@@ -207,5 +228,12 @@ def create_app(adapter_name: str = "sim", data_dir: Path = Path("data")) -> Fast
     async def lap_import(file: UploadFile):
         lap_id = engine.store.import_lap(await file.read())
         return {"id": lap_id}
+
+    # Serve the built UI (ui/dist) when present, so the whole app runs as
+    # one process at http://localhost:8000 with no dev tooling.
+    dist = Path(__file__).resolve().parents[2] / "ui" / "dist"
+    if dist.exists():
+        from fastapi.staticfiles import StaticFiles
+        app.mount("/", StaticFiles(directory=dist, html=True), name="ui")
 
     return app

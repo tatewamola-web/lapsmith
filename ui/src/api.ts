@@ -41,6 +41,8 @@ export interface LiveFrame {
   lap_number: number;
   lap_time: number;
   lap_dist: number;
+  pos_x: number;
+  pos_z: number;
   speed: number;
   throttle: number;
   brake: number;
@@ -49,6 +51,31 @@ export interface LiveFrame {
   rpm: number;
   last_lap_time: number;
   best_lap_time: number;
+}
+
+export interface SessionMeta {
+  id: number;
+  started_at: string;
+  game: string;
+  track: string;
+  car: string;
+  session_type: string;
+  laps: number;
+  valid_laps: number;
+  best_lap: number | null;
+}
+
+export interface LapChannels {
+  lap_dist: number[];
+  lap_time: number[];
+  speed: number[];
+  throttle: number[];
+  brake: number[];
+  steering: number[];
+  gear: number[];
+  rpm: number[];
+  pos_x: number[];
+  pos_z: number[];
 }
 
 export interface Status {
@@ -63,8 +90,36 @@ export async function getStatus(): Promise<Status> {
   return (await fetch("/api/status")).json();
 }
 
-export async function getLaps(): Promise<LapMeta[]> {
-  return (await fetch("/api/laps")).json();
+export async function getLaps(sessionId?: number | null): Promise<LapMeta[]> {
+  const q = sessionId ? `?session=${sessionId}` : "";
+  return (await fetch(`/api/laps${q}`)).json();
+}
+
+export async function getSessions(): Promise<SessionMeta[]> {
+  return (await fetch("/api/sessions")).json();
+}
+
+export async function getLapData(id: number): Promise<LapChannels> {
+  const r = await fetch(`/api/laps/${id}/data`);
+  if (!r.ok) throw new Error(`lap data failed: ${r.status}`);
+  return r.json();
+}
+
+export async function getPB(game: string, track: string, car: string): Promise<LapMeta | null> {
+  const q = new URLSearchParams({ game, track, car });
+  const r = await fetch(`/api/pb?${q}`);
+  return r.ok ? r.json() : null;
+}
+
+export async function deleteLap(id: number): Promise<void> {
+  await fetch(`/api/laps/${id}`, { method: "DELETE" });
+}
+
+export function fmtDate(iso: string): string {
+  const d = new Date(iso);
+  return d.toLocaleString(undefined, {
+    month: "short", day: "numeric", hour: "2-digit", minute: "2-digit",
+  });
 }
 
 export async function getCompare(lap: number, ref: number): Promise<ComparePayload> {

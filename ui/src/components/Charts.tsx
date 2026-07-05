@@ -59,15 +59,23 @@ function baseOpts(width: number, height: number, yLabel: string): uPlot.Options 
     legend: { show: false },
     scales: { x: { time: false } },
     axes: [
-      { ...AXIS, size: 28, values: (_u, vs) => vs.map((v) => `${(v / 1000).toFixed(1)}km`) },
+      // X is % of lap: corners land in the same place for every track,
+      // and "70% through the lap" reads more naturally than kilometers.
+      { ...AXIS, size: 28, values: (_u, vs) => vs.map((v) => `${Math.round(v)}%`) },
       { ...AXIS, size: 52, label: yLabel, labelFont: "10px Inter", labelGap: 2 },
     ],
     series: [{}],
   };
 }
 
+/** Distance grid → % of lap (0–100). */
+function pct(dist: number[]): number[] {
+  const max = dist[dist.length - 1] || 1;
+  return dist.map((d) => (d / max) * 100);
+}
+
 export function DeltaChart({ cmp }: { cmp: ComparePayload }) {
-  const data: uPlot.AlignedData = [cmp.dist, cmp.delta];
+  const data: uPlot.AlignedData = [pct(cmp.dist), cmp.delta];
   const ref = useUplot(
     (w) => {
       const o = baseOpts(w, 140, "delta s");
@@ -96,7 +104,7 @@ export function DeltaChart({ cmp }: { cmp: ComparePayload }) {
 
 export function SpeedChart({ cmp }: { cmp: ComparePayload }) {
   const kmh = (a: number[]) => a.map((v) => v * 3.6);
-  const data: uPlot.AlignedData = [cmp.dist, kmh(cmp.lap.speed), kmh(cmp.ref.speed)];
+  const data: uPlot.AlignedData = [pct(cmp.dist), kmh(cmp.lap.speed), kmh(cmp.ref.speed)];
   const ref = useUplot(
     (w) => {
       const o = baseOpts(w, 190, "km/h");
@@ -111,13 +119,13 @@ export function SpeedChart({ cmp }: { cmp: ComparePayload }) {
 }
 
 export function PedalChart({ cmp }: { cmp: ComparePayload }) {
-  const pct = (a: number[]) => a.map((v) => v * 100);
+  const p100 = (a: number[]) => a.map((v) => v * 100);
   const data: uPlot.AlignedData = [
-    cmp.dist,
-    pct(cmp.lap.throttle),
-    pct(cmp.ref.throttle),
-    pct(cmp.lap.brake),
-    pct(cmp.ref.brake),
+    pct(cmp.dist),
+    p100(cmp.lap.throttle),
+    p100(cmp.ref.throttle),
+    p100(cmp.lap.brake),
+    p100(cmp.ref.brake),
   ];
   const ref = useUplot(
     (w) => {
@@ -135,7 +143,7 @@ export function PedalChart({ cmp }: { cmp: ComparePayload }) {
 }
 
 export function SteeringChart({ cmp }: { cmp: ComparePayload }) {
-  const data: uPlot.AlignedData = [cmp.dist, cmp.lap.steering, cmp.ref.steering];
+  const data: uPlot.AlignedData = [pct(cmp.dist), cmp.lap.steering, cmp.ref.steering];
   const ref = useUplot(
     (w) => {
       const o = baseOpts(w, 110, "steer");

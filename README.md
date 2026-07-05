@@ -32,11 +32,18 @@ game: **Le Mans Ultimate**. Designed-for next: iRacing, ACC, Assetto Corsa.
   steering traces with synced cursors, and a track map colored by where you
   gain or lose time.
 
-## Quick start (no game needed)
+## Quick start
 
 ```powershell
-./scripts/dev.ps1        # engine with simulated driver + UI
-# open http://localhost:5173
+./scripts/apex.ps1              # one click: engine + UI at http://localhost:8000
+./scripts/apex.ps1 -Adapter sim # demo mode, no game needed
+```
+
+The engine serves the built UI itself — no dev tools or other programs
+required. For UI development with hot reload:
+
+```powershell
+./scripts/dev.ps1        # engine with simulated driver + Vite dev server (:5173)
 ```
 
 The simulated adapter drives realistic, imperfect laps around a synthetic

@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(python --version; \"exit=$LASTEXITCODE\"; python -m pip --version; \"pip_exit=$LASTEXITCODE\")",
+      "PowerShell(winget install --id=astral-sh.uv -e --accept-source-agreements --accept-package-agreements --silent 2>&1)",
+      "PowerShell(Remove-Item graphify-out\\\\.graphify_detect.json -Force -Confirm:$false)",
+      "PowerShell(foreach \\($cmd in @\\('node','npm','git'\\)\\) { $c = Get-Command $cmd -ErrorAction SilentlyContinue; if \\($c\\) { \"$cmd -> $\\(& $cmd --version 2>$null | Select-Object -First 1\\)\" } else { \"$cmd -> MISSING\" } })",
+      "PowerShell(winget install --id=OpenJS.NodeJS.LTS -e --accept-source-agreements --accept-package-agreements --silent 2>&1)",
+      "PowerShell(& \"engine\\\\.venv\\\\Scripts\\\\python.exe\" \"C:\\\\Users\\\\tatew\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\C--Users-tatew-Sim-Racing-Telemetry-Project\\\\448ade40-c03b-4e4e-86fd-91511d885147\\\\scratchpad\\\\smoke_test.py\")",
+      "WebFetch(domain:github.com)",
+      "PowerShell(git add -A)"
+    ]
+  }
+}

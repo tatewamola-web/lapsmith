@@ -1,0 +1,9 @@
+Metadata-Version: 2.4
+Name: apex-engine
+Version: 0.1.0
+Summary: Multi-sim racing telemetry engine: recording, lap analysis, live streaming
+Requires-Python: >=3.10
+Requires-Dist: fastapi>=0.110
+Requires-Dist: uvicorn[standard]>=0.29
+Requires-Dist: numpy>=1.26
+Requires-Dist: python-multipart>=0.0.9

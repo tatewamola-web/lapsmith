@@ -1,0 +1,238 @@
+/* APEX — motorsport engineering theme.
+   Restraint is the aesthetic: dark neutral surfaces, hairline borders,
+   monospaced numerals, one accent per driver. No gradients, no glow. */
+
+:root {
+  --bg: #0e1114;
+  --surface: #14181d;
+  --surface-2: #1a1f26;
+  --border: #262d36;
+  --text: #e8eaed;
+  --text-dim: #8b949e;
+  --text-faint: #58626e;
+  --you: #4dd0e1;      /* your lap: cyan */
+  --ref: #ff8a3d;      /* reference lap: orange */
+  --gain: #3fb950;     /* time gained */
+  --loss: #f85149;     /* time lost */
+  --pb: #d4a017;       /* personal best gold */
+  --mono: "JetBrains Mono", ui-monospace, Consolas, monospace;
+  --sans: Inter, system-ui, -apple-system, sans-serif;
+}
+
+* { box-sizing: border-box; }
+
+html, body, #root {
+  margin: 0;
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 14px;
+}
+
+.app {
+  display: grid;
+  grid-template-rows: 48px 1fr;
+  height: 100%;
+}
+
+/* -- header ---------------------------------------------------------- */
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 0 16px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.header .brand {
+  font-family: var(--mono);
+  font-weight: 700;
+  font-size: 15px;
+  letter-spacing: 0.35em;
+}
+
+.header .session {
+  color: var(--text-dim);
+  font-size: 13px;
+  display: flex;
+  gap: 12px;
+}
+
+.header .session b { color: var(--text); font-weight: 600; }
+
+.status-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--text-faint);
+  margin-left: auto;
+}
+.status-dot.live { background: var(--gain); }
+
+.status-label { color: var(--text-dim); font-size: 12px; font-family: var(--mono); }
+
+/* -- layout ------------------------------------------------------------ */
+
+.main {
+  display: grid;
+  grid-template-columns: 320px 1fr;
+  min-height: 0;
+}
+
+.sidebar {
+  border-right: 1px solid var(--border);
+  background: var(--surface);
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.content {
+  overflow-y: auto;
+  min-height: 0;
+  padding: 16px;
+}
+
+/* -- lap list ---------------------------------------------------------- */
+
+.laplist-head {
+  padding: 12px 14px 8px;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.laplist { width: 100%; border-collapse: collapse; font-family: var(--mono); font-size: 12.5px; }
+
+.laplist th {
+  text-align: right;
+  font-weight: 500;
+  color: var(--text-faint);
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--border);
+  font-size: 11px;
+}
+.laplist th:first-child { text-align: left; padding-left: 14px; }
+
+.laplist td {
+  text-align: right;
+  padding: 5px 8px;
+  border-bottom: 1px solid rgba(38, 45, 54, 0.5);
+  color: var(--text-dim);
+  cursor: default;
+  white-space: nowrap;
+}
+.laplist td:first-child { text-align: left; padding-left: 14px; color: var(--text); }
+
+.laplist tr.invalid td { color: var(--text-faint); text-decoration: line-through; }
+.laplist tr:hover td { background: var(--surface-2); }
+
+.laplist .time { color: var(--text); }
+.laplist tr.invalid .time { color: var(--text-faint); }
+
+.badge {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 5px;
+  border-radius: 3px;
+  margin-left: 6px;
+  vertical-align: 1px;
+}
+.badge.pb { background: rgba(212, 160, 23, 0.15); color: var(--pb); }
+.badge.imported { background: rgba(77, 208, 225, 0.12); color: var(--you); }
+
+.pick {
+  font-family: var(--mono);
+  font-size: 10px;
+  padding: 2px 7px;
+  border-radius: 3px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+}
+.pick:hover { border-color: var(--text-faint); color: var(--text); }
+.pick.on-you { border-color: var(--you); color: var(--you); }
+.pick.on-ref { border-color: var(--ref); color: var(--ref); }
+
+/* -- compare view ------------------------------------------------------- */
+
+.compare-head {
+  display: flex;
+  align-items: baseline;
+  gap: 18px;
+  margin-bottom: 12px;
+  font-family: var(--mono);
+}
+.compare-head .vs { color: var(--text-faint); font-size: 12px; }
+.compare-head .you { color: var(--you); }
+.compare-head .ref { color: var(--ref); }
+.compare-head .final-delta { margin-left: auto; font-size: 20px; font-weight: 700; }
+.final-delta.pos { color: var(--loss); }
+.final-delta.neg { color: var(--gain); }
+
+.grid-2col {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 16px;
+  align-items: start;
+}
+.grid-2col > div { min-width: 0; }
+
+@media (min-width: 1100px) {
+  .grid-2col { grid-template-columns: 1fr 340px; }
+}
+
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 10px 12px;
+  margin-bottom: 12px;
+}
+
+.panel h3 {
+  margin: 0 0 6px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+.placeholder {
+  color: var(--text-faint);
+  font-size: 13px;
+  padding: 48px 24px;
+  text-align: center;
+  line-height: 1.7;
+}
+
+.uplot { font-family: var(--mono) !important; }
+.u-legend { display: none; }
+
+/* -- live strip ---------------------------------------------------------- */
+
+.live-strip {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  font-family: var(--mono);
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.live-cell { min-width: 68px; }
+.live-cell .label { font-size: 9px; letter-spacing: 0.14em; color: var(--text-faint); text-transform: uppercase; }
+.live-cell .value { font-size: 17px; font-weight: 600; }
+
+.pedal-bars { display: flex; gap: 4px; height: 34px; align-items: flex-end; }
+.pedal-bars .bar { width: 9px; background: var(--surface-2); position: relative; height: 100%; border-radius: 2px; overflow: hidden; }
+.pedal-bars .fill { position: absolute; bottom: 0; left: 0; right: 0; border-radius: 2px; }
+.fill.throttle { background: var(--gain); }
+.fill.brake { background: var(--loss); }

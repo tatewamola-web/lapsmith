@@ -218,6 +218,30 @@ zooms the charts around the cursor; double-click still resets.
 
 ---
 
+## 2026-07-05 — Day 2 (late): Racing lines and organization
+
+### Feature: racing-line comparison with per-corner zoom
+The compare payload now carries both laps' world positions, and a new
+Racing Line panel overlays them top-down — your line in cyan, the
+reference in orange. Corner chips (using official turn numbers: T1-2,
+T4-5, T8-9-10, T11) zoom to apex ± 250 m with a direction arrow, which is
+where line differences actually become visible.
+
+### Clarified: detected corners vs. official turn numbers
+Monza has 11 official turns but 7 braking/cornering *zones* — a chicane is
+two turns, one zone. Labels now carry the official numbers so both views
+agree with the real track map.
+
+### Organization from user feedback
+The all-laps list was chaos once 224 history laps arrived. Now: the
+analysis list defaults to the current track + car combo (dropdown for any
+other combo, or all laps), and the Sessions tab groups by track with each
+track's all-time best, last-driven date, and color-coded session types.
+Sessions are created lazily on the first completed lap, so engine restarts
+no longer scatter empty session rows.
+
+---
+
 ## Design principles that emerged (running list)
 
 1. **Wall off what varies.** One adapter per sim; everything else is shared.

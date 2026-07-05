@@ -36,34 +36,40 @@ export default function LapList({
       <div className="lap-rows">
         {shown.map((lap) => {
           const sel = youId === lap.id ? "sel-you" : refId === lap.id ? "sel-ref" : "";
+          const analyzable = lap.has_data !== false;
           return (
             <div
               key={lap.id}
               className={`lap-row ${lap.valid ? "" : "invalid"} ${sel}`}
-              onClick={() => onPick(lap.id, "you")}
-              title="Click to analyze this lap (A)"
+              onClick={() => analyzable && onPick(lap.id, "you")}
+              title={analyzable ? "Click to analyze this lap (A)" : "Game-history lap: time only, no telemetry to analyze"}
             >
               <div className="lap-row-main">
                 <span className="lapno">L{lap.lap_number}</span>
                 <span className="laptime">{fmtTime(lap.lap_time)}</span>
                 {lap.is_pb && <span className="badge pb">PB</span>}
                 {lap.source === "imported" && <span className="badge imported">IMP</span>}
+                {lap.source === "game-log" && <span className="badge log">LOG</span>}
                 {!lap.valid && <span className="badge cut">INV</span>}
                 <span className="lap-actions" onClick={(e) => e.stopPropagation()}>
-                  <button
-                    className={`pick ${youId === lap.id ? "on-you" : ""}`}
-                    title="Analyze this lap"
-                    onClick={() => onPick(lap.id, "you")}
-                  >
-                    A
-                  </button>
-                  <button
-                    className={`pick ${refId === lap.id ? "on-ref" : ""}`}
-                    title="Use as reference lap"
-                    onClick={() => onPick(lap.id, "ref")}
-                  >
-                    R
-                  </button>
+                  {analyzable && (
+                    <>
+                      <button
+                        className={`pick ${youId === lap.id ? "on-you" : ""}`}
+                        title="Analyze this lap"
+                        onClick={() => onPick(lap.id, "you")}
+                      >
+                        A
+                      </button>
+                      <button
+                        className={`pick ${refId === lap.id ? "on-ref" : ""}`}
+                        title="Use as reference lap"
+                        onClick={() => onPick(lap.id, "ref")}
+                      >
+                        R
+                      </button>
+                    </>
+                  )}
                   <button
                     className="pick danger"
                     title="Delete lap"

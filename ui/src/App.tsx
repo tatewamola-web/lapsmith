@@ -49,7 +49,8 @@ export default function App() {
         setLaps(l);
         setSessions(ses);
         if (!autoPicked.current && l.length > 0) {
-          const valid = l.filter((x) => x.valid);
+          // only laps with telemetry channels can be charted
+          const valid = l.filter((x) => x.valid && x.has_data !== false);
           if (valid.length >= 2) {
             const pb = valid.find((x) => x.is_pb) ?? valid[valid.length - 1];
             const latest = valid.find((x) => x.id !== pb.id) ?? valid[0];

@@ -182,6 +182,42 @@ recording indicator got promoted to the loudest element in the header.
 
 ---
 
+## 2026-07-05 — Day 2 (night): History, geometry, and the ideal lap
+
+### Feature: your entire LMU history, recovered
+The rF2 engine writes a results XML after every session
+(UserData/Log/Results) with every lap and sector time. An importer now
+parses those into the library: **59 sessions back to April 24** — Le Mans
+race weekends, Spa, Bahrain, Sebring, Imola — times and sectors only
+(telemetry channels can't be recovered; nothing recorded them), so they're
+marked LOG: they count toward PBs and the ideal lap but can't be charted.
+Two encoding traps: the XMLs claim UTF-8 but write Latin-1 accents, and
+laps we recorded live had to be deduplicated against their game-log twins —
+laps recorded by the *current* engine matched the game's own log to the
+millisecond, which is its own little validation.
+
+### Upgrade: corners from track geometry, with real names
+Corner detection moved from "where does speed dip" to path curvature —
+κ = |x′z″ − z′x″| / (x′² + z′²)^1.5 on the driven line — which finds every
+real corner including flat-out ones (Curva Grande never slows the car; only
+geometry sees it). A small calibrated database maps detected corners to
+their real names: the analysis table now says "T4-5 Variante della Roggia"
+instead of "T3". Two tuning lessons: smoothing windows create phantom
+curvature at the lap's start/finish (edge artifacts — excluded), and the
+grip threshold decides whether Curva Grande is a corner or a straight.
+
+### Feature: theoretical ideal lap
+Best S1 + best S2 + best S3 across every lap with sector data (history
+included) = the lap you've already proven you can drive, one sector at a
+time. Shown next to the real PB with the gap labeled "in your hands."
+
+### UI: markers everywhere, scroll zoom
+Sector boundaries (dashed lines) and corner numbers now annotate the delta
+and speed charts; T-labels sit on the track map at each apex. Mouse wheel
+zooms the charts around the cursor; double-click still resets.
+
+---
+
 ## Design principles that emerged (running list)
 
 1. **Wall off what varies.** One adapter per sim; everything else is shared.

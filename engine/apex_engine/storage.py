@@ -61,6 +61,11 @@ class LapStore:
         cols = {r["name"] for r in con.execute("PRAGMA table_info(laps)")}
         if "session_id" not in cols:
             con.execute("ALTER TABLE laps ADD COLUMN session_id INTEGER")
+        scols = {r["name"] for r in con.execute("PRAGMA table_info(sessions)")}
+        if "source" not in scols:
+            con.execute("ALTER TABLE sessions ADD COLUMN source TEXT NOT NULL DEFAULT 'live'")
+        if "import_key" not in scols:
+            con.execute("ALTER TABLE sessions ADD COLUMN import_key TEXT")
         # Backfill: pre-session laps get one session per game/track/car combo.
         orphans = con.execute(
             "SELECT game, track, car, session_type, MIN(created_at) AS t0"
@@ -78,15 +83,45 @@ class LapStore:
                 (cur.lastrowid, o["game"], o["track"], o["car"]),
             )
 
-    def start_session(self, ctx: SessionContext) -> int:
+    def start_session(self, ctx: SessionContext, started_at: Optional[str] = None,
+                      source: str = "live", import_key: Optional[str] = None) -> int:
         with self._conn() as con:
             cur = con.execute(
-                "INSERT INTO sessions (started_at, game, track, car, session_type)"
-                " VALUES (?,?,?,?,?)",
-                (datetime.now(timezone.utc).isoformat(), ctx.game, ctx.track,
-                 ctx.car, ctx.session_type),
+                "INSERT INTO sessions (started_at, game, track, car, session_type,"
+                " source, import_key) VALUES (?,?,?,?,?,?,?)",
+                (started_at or datetime.now(timezone.utc).isoformat(), ctx.game,
+                 ctx.track, ctx.car, ctx.session_type, source, import_key),
             )
             return cur.lastrowid
+
+    def existing_import_keys(self) -> set:
+        with self._conn() as con:
+            rows = con.execute(
+                "SELECT import_key FROM sessions WHERE import_key IS NOT NULL"
+            ).fetchall()
+        return {r["import_key"] for r in rows}
+
+    def ideal_lap(self, game: str, track: str, car: str) -> Optional[dict]:
+        """Theoretical best: fastest recorded time in each sector, combined."""
+        with self._conn() as con:
+            row = con.execute(
+                "SELECT MIN(s1) AS s1, MIN(s2) AS s2, MIN(s3) AS s3,"
+                " COUNT(*) AS laps_with_sectors FROM laps"
+                " WHERE valid=1 AND game=? AND track=? AND car=?"
+                " AND s1 IS NOT NULL AND s2 IS NOT NULL AND s3 IS NOT NULL",
+                (game, track, car),
+            ).fetchone()
+        if row is None or row["s1"] is None:
+            return None
+        pb = self.personal_best(game, track, car)
+        total = row["s1"] + row["s2"] + row["s3"]
+        return {
+            "s1": row["s1"], "s2": row["s2"], "s3": row["s3"],
+            "total": total,
+            "laps_considered": row["laps_with_sectors"],
+            "pb_time": pb["lap_time"] if pb else None,
+            "gap_to_pb": (pb["lap_time"] - total) if pb else None,
+        }
 
     def list_sessions(self) -> list[dict]:
         with self._conn() as con:
@@ -106,7 +141,8 @@ class LapStore:
     # -- write ---------------------------------------------------------
 
     def save_lap(self, lap: LapResult, source: str = "recorded",
-                 driver: str = "me", session_id: Optional[int] = None) -> int:
+                 driver: str = "me", session_id: Optional[int] = None,
+                 created_at: Optional[str] = None) -> int:
         s = lap.sector_times or [None, None, None]
         with self._conn() as con:
             cur = con.execute(
@@ -114,16 +150,17 @@ class LapStore:
                 " lap_number, lap_time, s1, s2, s3, valid, source, driver, session_id)"
                 " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                 (
-                    datetime.now(timezone.utc).isoformat(),
+                    created_at or datetime.now(timezone.utc).isoformat(),
                     lap.context.game, lap.context.track, lap.context.car,
                     lap.context.session_type, lap.lap_number, lap.lap_time,
                     s[0], s[1], s[2], int(lap.valid), source, driver, session_id,
                 ),
             )
             lap_id = cur.lastrowid
-        arrays = {ch: np.asarray(vals, dtype=np.float32)
-                  for ch, vals in lap.channels.items()}
-        np.savez_compressed(self.laps_dir / f"{lap_id}.npz", **arrays)
+        if lap.channels:  # game-log imports have times only, no channel data
+            arrays = {ch: np.asarray(vals, dtype=np.float32)
+                      for ch, vals in lap.channels.items()}
+            np.savez_compressed(self.laps_dir / f"{lap_id}.npz", **arrays)
         return lap_id
 
     def delete_lap(self, lap_id: int) -> None:
@@ -143,12 +180,13 @@ class LapStore:
             if val:
                 q += f" AND {col}=?"
                 args.append(val)
-        q += " ORDER BY id DESC"
+        q += " ORDER BY created_at DESC, id DESC"
         with self._conn() as con:
             rows = [dict(r) for r in con.execute(q, args)]
         pb = self._pb_ids()
         for r in rows:
             r["is_pb"] = r["id"] in pb
+            r["has_data"] = (self.laps_dir / f"{r['id']}.npz").exists()
         return rows
 
     def get_lap(self, lap_id: int) -> Optional[dict]:

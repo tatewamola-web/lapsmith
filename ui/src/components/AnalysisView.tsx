@@ -1,10 +1,11 @@
 // Analysis: lap library sidebar + comparison charts.
 
-import type { ComparePayload, Insights, LapMeta } from "../api";
-import { fmtTime } from "../api";
+import { useEffect, useState } from "react";
+import type { ComparePayload, IdealLap, Insights, LapMeta } from "../api";
+import { fmtTime, getIdeal } from "../api";
 import LapList from "./LapList";
 import TrackMap from "./TrackMap";
-import { DeltaChart, PedalChart, SpeedChart, SteeringChart } from "./Charts";
+import { ChartMarkers, DeltaChart, PedalChart, SpeedChart, SteeringChart } from "./Charts";
 
 interface Props {
   laps: LapMeta[];
@@ -18,6 +19,38 @@ interface Props {
   onClearFilter: () => void;
 }
 
+function IdealPanel({ ideal }: { ideal: IdealLap }) {
+  return (
+    <div className="panel">
+      <h3>Theoretical Ideal Lap · best sectors combined</h3>
+      <div style={{ fontFamily: "var(--mono)", fontSize: 13, lineHeight: 2 }}>
+        <div style={{ display: "flex", justifyContent: "space-between" }}>
+          <span style={{ color: "var(--text-dim)" }}>
+            {ideal.s1.toFixed(3)} · {ideal.s2.toFixed(3)} · {ideal.s3.toFixed(3)}
+          </span>
+        </div>
+        <div style={{ display: "flex", justifyContent: "space-between" }}>
+          <span style={{ color: "var(--text-faint)" }}>ideal</span>
+          <b style={{ color: "var(--pb)", fontSize: 17 }}>{fmtTime(ideal.total)}</b>
+        </div>
+        {ideal.pb_time != null && (
+          <div style={{ display: "flex", justifyContent: "space-between" }}>
+            <span style={{ color: "var(--text-faint)" }}>real PB</span>
+            <span>{fmtTime(ideal.pb_time)}</span>
+          </div>
+        )}
+        {ideal.gap_to_pb != null && ideal.gap_to_pb > 0.001 && (
+          <div style={{ display: "flex", justifyContent: "space-between" }}>
+            <span style={{ color: "var(--text-faint)" }}>in your hands</span>
+            <span style={{ color: "var(--gain)" }}>-{ideal.gap_to_pb.toFixed(3)}s</span>
+          </div>
+        )}
+      </div>
+      <div className="hint">from {ideal.laps_considered} laps with sector data (incl. game history)</div>
+    </div>
+  );
+}
+
 function CornerPanel({ ins }: { ins: Insights }) {
   return (
     <div className="panel">
@@ -28,7 +61,7 @@ function CornerPanel({ ins }: { ins: Insights }) {
       <table className="corner-table">
         <thead>
           <tr>
-            <th>T#</th>
+            <th>Corner</th>
             <th>At</th>
             <th>Sector</th>
             <th>Loss</th>
@@ -39,7 +72,7 @@ function CornerPanel({ ins }: { ins: Insights }) {
         <tbody>
           {ins.corners.map((c) => (
             <tr key={c.n} className={ins.worst.includes(c.n) ? "worst" : ""}>
-              <td className="num">T{c.n}</td>
+              <td className="num">{c.name || `T${c.n}`}</td>
               <td className="num">{c.apex_pct.toFixed(0)}%</td>
               <td className="num">{c.sector > 0 ? `S${c.sector}` : "–"}</td>
               <td className={`num ${c.loss > 0.03 ? "loss-pos" : c.loss < -0.03 ? "loss-neg" : ""}`}>
@@ -54,7 +87,7 @@ function CornerPanel({ ins }: { ins: Insights }) {
           ))}
         </tbody>
       </table>
-      <div className="hint">worst corners highlighted · At = % of lap · loss is time vs reference across that corner</div>
+      <div className="hint">worst corners highlighted · corners detected from track geometry · loss is time vs reference across that corner</div>
     </div>
   );
 }
@@ -63,6 +96,35 @@ export default function AnalysisView({
   laps, youId, refId, cmp, insights, sessionFilter, onPick, onDelete, onClearFilter,
 }: Props) {
   const finalDelta = cmp ? cmp.delta[cmp.delta.length - 1] : null;
+  const [ideal, setIdeal] = useState<IdealLap | null>(null);
+
+  useEffect(() => {
+    const m = cmp?.lap_meta;
+    if (!m) {
+      setIdeal(null);
+      return;
+    }
+    let stale = false;
+    getIdeal(m.game, m.track, m.car)
+      .then((i) => !stale && setIdeal(i))
+      .catch(() => !stale && setIdeal(null));
+    return () => {
+      stale = true;
+    };
+  }, [cmp?.lap_meta?.game, cmp?.lap_meta?.track, cmp?.lap_meta?.car]);
+
+  // Sector lines + corner ticks for the delta/speed charts, in % of lap.
+  const maxDist = cmp ? cmp.dist[cmp.dist.length - 1] : 0;
+  const markers: ChartMarkers | undefined =
+    cmp && insights
+      ? {
+          sectors: [
+            { pct: (insights.s1_dist / maxDist) * 100, label: "S1|S2" },
+            { pct: (insights.s2_dist / maxDist) * 100, label: "S2|S3" },
+          ].filter((s) => s.pct > 0),
+          corners: insights.corners.map((c) => ({ pct: c.apex_pct, label: `T${c.n}` })),
+        }
+      : undefined;
 
   return (
     <div className="analysis-grid">
@@ -102,11 +164,11 @@ export default function AnalysisView({
               <div>
                 <div className="panel">
                   <h3>Time Delta</h3>
-                  <DeltaChart cmp={cmp} />
+                  <DeltaChart cmp={cmp} markers={markers} />
                 </div>
                 <div className="panel">
                   <h3>Speed</h3>
-                  <SpeedChart cmp={cmp} />
+                  <SpeedChart cmp={cmp} markers={markers} />
                 </div>
                 <div className="panel">
                   <h3>Throttle / Brake</h3>
@@ -121,17 +183,19 @@ export default function AnalysisView({
               <div>
                 <div className="panel">
                   <h3>Track · time gain/loss</h3>
-                  <TrackMap cmp={cmp} />
+                  <TrackMap cmp={cmp} insights={insights} />
                 </div>
+                {ideal && <IdealPanel ideal={ideal} />}
                 <div className="panel">
                   <h3>Legend</h3>
                   <div style={{ fontSize: 12.5, color: "var(--text-dim)", lineHeight: 1.9 }}>
-                    <div><span style={{ color: "var(--you)" }}>━</span> your lap (A)</div>
-                    <div><span style={{ color: "var(--ref)" }}>━</span> reference lap (R)</div>
-                    <div><span style={{ color: "var(--loss)" }}>━</span> losing time</div>
-                    <div><span style={{ color: "var(--gain)" }}>━</span> gaining time</div>
+                    <div><span style={{ color: "var(--you)" }}>━</span> solid = your lap (A)</div>
+                    <div><span style={{ color: "var(--ref)" }}>┅</span> dashed = reference lap (R)</div>
+                    <div><span style={{ color: "var(--loss)" }}>━</span> losing time / brake</div>
+                    <div><span style={{ color: "var(--gain)" }}>━</span> gaining time / throttle</div>
+                    <div><span style={{ color: "var(--pb)" }}>●</span> corner markers (T-numbers)</div>
                   </div>
-                  <div className="hint">charts: drag to zoom · double-click to reset</div>
+                  <div className="hint">charts: scroll to zoom · drag to box-zoom · double-click resets</div>
                 </div>
               </div>
             </div>

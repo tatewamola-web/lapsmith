@@ -16,6 +16,7 @@ export interface LapMeta {
   source: string;
   driver: string;
   is_pb: boolean;
+  has_data?: boolean;
 }
 
 export interface ChannelSet {
@@ -117,6 +118,7 @@ export async function deleteLap(id: number): Promise<void> {
 
 export interface CornerInsight {
   n: number;
+  name: string;
   apex_dist: number;
   apex_pct: number;
   sector: number;
@@ -141,6 +143,22 @@ export async function getInsights(lap: number, ref: number): Promise<Insights> {
   const r = await fetch(`/api/insights?lap=${lap}&ref=${ref}`);
   if (!r.ok) throw new Error(`insights failed: ${r.status}`);
   return r.json();
+}
+
+export interface IdealLap {
+  s1: number;
+  s2: number;
+  s3: number;
+  total: number;
+  laps_considered: number;
+  pb_time: number | null;
+  gap_to_pb: number | null;
+}
+
+export async function getIdeal(game: string, track: string, car: string): Promise<IdealLap | null> {
+  const q = new URLSearchParams({ game, track, car });
+  const r = await fetch(`/api/ideal?${q}`);
+  return r.ok ? r.json() : null;
 }
 
 export function fmtDate(iso: string): string {

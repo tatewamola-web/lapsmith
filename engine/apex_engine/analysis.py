@@ -97,7 +97,7 @@ def _smooth(a: np.ndarray, w: int = 7) -> np.ndarray:
 
 
 def _find_corner_apexes(dist: np.ndarray, speed: np.ndarray) -> list[int]:
-    """Indices of corner apexes: prominent local minima of smoothed speed."""
+    """Fallback: apexes as prominent local minima of smoothed speed."""
     v = _smooth(speed)
     n = len(v)
     win = 12  # +/- ~50 m at 4 m grid
@@ -118,8 +118,63 @@ def _find_corner_apexes(dist: np.ndarray, speed: np.ndarray) -> list[int]:
     return apexes
 
 
+def _find_corner_apexes_geo(ch: dict[str, np.ndarray]) -> list[int]:
+    """Apexes from track geometry: sustained curvature of the driven path.
+
+    Curvature k = |x'z'' - z'x''| / (x'^2 + z'^2)^1.5 — coordinate-free, so
+    it finds every real corner including flat-out ones that never show a
+    speed dip. Within each curved region the apex is the slowest point
+    (or max curvature if speed never dips).
+    """
+    if "pos_x" not in ch or "pos_z" not in ch:
+        return []
+    x, z = _smooth(ch["pos_x"], 9), _smooth(ch["pos_z"], 9)
+    dx, dz = np.gradient(x), np.gradient(z)
+    ddx, ddz = np.gradient(dx), np.gradient(dz)
+    k = np.abs(dx * ddz - dz * ddx) / ((dx * dx + dz * dz) ** 1.5 + 1e-12)
+    k = _smooth(k, 9)
+
+    in_corner = k > (1.0 / 320.0)  # radius under ~320 m counts as a corner
+    # group contiguous curved stretches, bridging gaps < 40 m (10 pts)
+    regions: list[tuple[int, int]] = []
+    i, n = 0, len(k)
+    while i < n:
+        if in_corner[i]:
+            j = i
+            gap = 0
+            end = i
+            while j < n and gap < 10:
+                if in_corner[j]:
+                    end = j
+                    gap = 0
+                else:
+                    gap += 1
+                j += 1
+            if end - i >= 8:  # at least ~32 m of sustained curvature
+                regions.append((i, end))
+            i = j
+        else:
+            i += 1
+    # The lap's first/last samples get phantom curvature from the smoothing
+    # window edges — a "corner" hugging the start/finish line is an artifact.
+    edge = max(int(n * 0.012), 4)
+    regions = [(a, b) for a, b in regions if a > edge and b < n - edge]
+
+    speed = _smooth(ch["speed"])
+    apexes = []
+    for a, b in regions:
+        seg_v = speed[a:b + 1]
+        # slowest point if the corner actually slows the car, else max curvature
+        if seg_v.max() - seg_v.min() > 3.0:
+            apexes.append(a + int(np.argmin(seg_v)))
+        else:
+            apexes.append(a + int(np.argmax(k[a:b + 1])))
+    return apexes
+
+
 def insights(lap: dict[str, np.ndarray], ref: dict[str, np.ndarray],
-             ref_s1: float = -1.0, ref_s2: float = -1.0) -> Optional[dict]:
+             ref_s1: float = -1.0, ref_s2: float = -1.0,
+             track: str = "") -> Optional[dict]:
     """Corner-by-corner comparison with generated coaching advice.
 
     Corners are detected on the *reference* lap (the target line). For each
@@ -149,7 +204,9 @@ def insights(lap: dict[str, np.ndarray], ref: dict[str, np.ndarray],
             return 2
         return 3 if s2_dist > 0 else 0
 
-    apexes = _find_corner_apexes(grid, b["speed"])
+    # Geometry first (finds every real corner from the driven path);
+    # speed-minima fallback when position data is missing.
+    apexes = _find_corner_apexes_geo(b) or _find_corner_apexes(grid, b["speed"])
     n = len(grid)
     corners = []
     for ci, apex in enumerate(apexes):
@@ -187,10 +244,13 @@ def insights(lap: dict[str, np.ndarray], ref: dict[str, np.ndarray],
         elif loss < -0.03:
             advice.append("faster than the reference here — this corner is a strength")
 
+        from .track_data import match_name
+        apex_pct = round(float(grid[apex]) / max_d * 100, 1)
         corners.append({
             "n": ci + 1,
+            "name": match_name(track, apex_pct),
             "apex_dist": round(float(grid[apex]), 1),
-            "apex_pct": round(float(grid[apex]) / max_d * 100, 1),
+            "apex_pct": apex_pct,
             "sector": sector_of(float(grid[apex])),
             "loss": round(loss, 3),
             "apex_kmh_you": round(apex_kmh_you, 1),

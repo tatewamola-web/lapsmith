@@ -126,6 +126,16 @@ def create_app(adapter_name: str = "sim", data_dir: Path = Path("data")) -> Fast
     @app.on_event("startup")
     def _startup():
         engine.start()
+        # Pull historical lap times from the game's own result logs so old
+        # PBs exist from the first launch. Idempotent, so safe every start.
+        if adapter_name == "lmu":
+            def _import():
+                try:
+                    from .importers.lmu_results import import_results
+                    import_results(engine.store)
+                except Exception:
+                    logger.exception("game-history import failed")
+            threading.Thread(target=_import, daemon=True, name="history-import").start()
 
     @app.on_event("shutdown")
     def _shutdown():
@@ -220,10 +230,21 @@ def create_app(adapter_name: str = "sim", data_dir: Path = Path("data")) -> Fast
         # analysis wants rF2-style cumulative s2 (s1 + s2 splits)
         s1 = ref_meta.get("s1") or -1.0
         s2 = (ref_meta["s1"] + ref_meta["s2"]) if ref_meta.get("s1") and ref_meta.get("s2") else -1.0
-        payload = analysis.insights(a, b, ref_s1=s1, ref_s2=s2)
+        payload = analysis.insights(a, b, ref_s1=s1, ref_s2=s2,
+                                    track=ref_meta.get("track", ""))
         if payload is None:
             return Response(status_code=422)
         return payload
+
+    @app.get("/api/ideal")
+    def ideal(game: str, track: str, car: str):
+        result = engine.store.ideal_lap(game, track, car)
+        return result if result else Response(status_code=404)
+
+    @app.post("/api/import/game-history")
+    def import_game_history():
+        from .importers.lmu_results import import_results
+        return import_results(engine.store)
 
     # -- interchange -----------------------------------------------------
 

@@ -3,9 +3,9 @@
 // you're faster there; red = the reference is taking time out of you.
 
 import { useEffect, useRef } from "react";
-import type { ComparePayload } from "../api";
+import type { ComparePayload, Insights } from "../api";
 
-export default function TrackMap({ cmp }: { cmp: ComparePayload }) {
+export default function TrackMap({ cmp, insights }: { cmp: ComparePayload; insights?: Insights | null }) {
   const ref = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
@@ -71,7 +71,27 @@ export default function TrackMap({ cmp }: { cmp: ComparePayload }) {
     ctx.font = "10px 'JetBrains Mono'";
     ctx.fillStyle = "#8b949e";
     ctx.fillText("S/F", px(0) + 7, pz(0) + 3);
-  }, [cmp]);
+
+    // corner labels from the insights engine (same distance grid as cmp)
+    if (insights) {
+      const step = cmp.dist.length > 1 ? cmp.dist[1] - cmp.dist[0] : 4;
+      ctx.font = "600 10px 'JetBrains Mono'";
+      for (const c of insights.corners) {
+        const i = Math.min(Math.round(c.apex_dist / step), x.length - 1);
+        const cxp = px(i), czp = pz(i);
+        ctx.fillStyle = "#d4a017";
+        ctx.beginPath();
+        ctx.arc(cxp, czp, 2.5, 0, Math.PI * 2);
+        ctx.fill();
+        // nudge the label away from the racing line
+        const j = Math.max(i - 3, 0);
+        const nx = cxp - px(j), nz = czp - pz(j);
+        const len = Math.hypot(nx, nz) || 1;
+        ctx.fillStyle = "rgba(212,160,23,0.95)";
+        ctx.fillText(`T${c.n}`, cxp + (-nz / len) * 12, czp + (nx / len) * 12 + 3);
+      }
+    }
+  }, [cmp, insights]);
 
   return <canvas ref={ref} style={{ width: "100%", height: 300 }} />;
 }

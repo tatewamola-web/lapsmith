@@ -1,0 +1,26 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(curl.exe -s *)",
+      "PowerShell(git add *)",
+      "PowerShell(git commit *)",
+      "PowerShell(git status *)",
+      "PowerShell(git log *)",
+      "PowerShell(git diff *)",
+      "PowerShell(Get-Process python *)",
+      "PowerShell(Get-Process python -ErrorAction SilentlyContinue | Where-Object { $_.Path -like \"*Sim Racing*\" } | Stop-Process -Force -Confirm:$false)",
+      "PowerShell(Start-Process -FilePath \"engine\\.venv\\Scripts\\python.exe\" -ArgumentList \"-m\",\"apex_engine\" *)",
+      "PowerShell(& \"engine\\.venv\\Scripts\\python.exe\" \"C:\\Users\\tatew\\AppData\\Local\\Temp\\claude\\*)",
+      "mcp__Claude_Preview__preview_screenshot",
+      "mcp__Claude_Preview__preview_snapshot",
+      "mcp__Claude_Preview__preview_logs",
+      "mcp__Claude_Preview__preview_console_logs",
+      "mcp__Claude_Preview__preview_network",
+      "mcp__Claude_Preview__preview_inspect",
+      "mcp__Claude_Preview__preview_list",
+      "mcp__Claude_Preview__preview_start",
+      "mcp__Claude_Preview__preview_eval",
+      "mcp__Claude_Preview__preview_click"
+    ]
+  }
+}

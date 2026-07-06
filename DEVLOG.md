@@ -242,6 +242,32 @@ no longer scatter empty session rows.
 
 ---
 
+## 2026-07-06 — Day 3: Ghost playback
+
+### Feature: watch laps race each other
+The racing-line view gained a play button. Both laps replay **on a shared
+clock** — at every instant you see where each car is on the circuit, with
+live speed readouts and the running time gap. That's the "ghost car"
+concept from racing games, reconstructed from stored telemetry: each lap's
+time-over-distance curve is inverted (binary search) to answer "where was
+this car at t = 43.2 s?". Scrubber, 0.5–4× speed, and a solo mode for
+watching a single lap when no reference is picked.
+
+### Feature: track corridor (approximate track limits)
+LMU exposes the distance from the track's center path to its edge
+(mTrackEdge), which new laps now record. The line view strokes the
+reference path at that width — a gray corridor that makes it obvious when
+a line runs wide. Old laps fall back to a constant ~11 m band. Honest
+caveat: it's the width at the driven line, not surveyed edge geometry.
+
+### Polish from user feedback (inspiration: Trophi.ai-class tools)
+Racing lines thinned to 1.4 px with wheel-zoom + drag-pan; percent labels
+dropped from chart axes (sector lines and corner markers are the real
+landmarks); throttle/brake and steering charts got the same markers;
+session groups are collapsible.
+
+---
+
 ## Design principles that emerged (running list)
 
 1. **Wall off what varies.** One adapter per sim; everything else is shared.

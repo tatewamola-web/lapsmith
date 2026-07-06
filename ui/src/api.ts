@@ -25,6 +25,7 @@ export interface ChannelSet {
   brake: number[];
   steering: number[];
   gear: number[];
+  lap_time: number[];
 }
 
 export interface ComparePayload {
@@ -32,7 +33,7 @@ export interface ComparePayload {
   delta: number[];
   lap: ChannelSet;
   ref: ChannelSet;
-  map: { x: number[]; z: number[]; you_x?: number[]; you_z?: number[] };
+  map: { x: number[]; z: number[]; you_x?: number[]; you_z?: number[]; width?: number[] };
   lap_meta: LapMeta;
   ref_meta: LapMeta;
 }

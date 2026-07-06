@@ -26,7 +26,8 @@
       "PowerShell(& \"engine\\\\.venv\\\\Scripts\\\\python.exe\" \"C:\\\\Users\\\\tatew\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\C--Users-tatew-Sim-Racing-Telemetry-Project\\\\448ade40-c03b-4e4e-86fd-91511d885147\\\\scratchpad\\\\check_insights.py\")",
       "PowerShell(& \"engine\\\\.venv\\\\Scripts\\\\python.exe\" \"C:\\\\Users\\\\tatew\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\C--Users-tatew-Sim-Racing-Telemetry-Project\\\\448ade40-c03b-4e4e-86fd-91511d885147\\\\scratchpad\\\\check_encoding.py\")",
       "PowerShell(& \"engine\\\\.venv\\\\Scripts\\\\python.exe\" -c \"import sqlite3; con=sqlite3.connect\\(r'data\\\\apex.db'\\); [print\\(dict\\(zip\\(['id','started','track','source','key'],r\\)\\)\\) for r in con.execute\\('SELECT id, started_at, track, source, import_key FROM sessions WHERE track LIKE percent_Monza_percent'.replace\\('percent','%'\\)\\)]\")",
-      "PowerShell(& \"engine\\\\.venv\\\\Scripts\\\\python.exe\" \"C:\\\\Users\\\\tatew\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\C--Users-tatew-Sim-Racing-Telemetry-Project\\\\448ade40-c03b-4e4e-86fd-91511d885147\\\\scratchpad\\\\check_monza_sessions.py\")"
+      "PowerShell(& \"engine\\\\.venv\\\\Scripts\\\\python.exe\" \"C:\\\\Users\\\\tatew\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\C--Users-tatew-Sim-Racing-Telemetry-Project\\\\448ade40-c03b-4e4e-86fd-91511d885147\\\\scratchpad\\\\check_monza_sessions.py\")",
+      "PowerShell(git add DEVLOG.md)"
     ]
   }
 }

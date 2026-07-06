@@ -39,6 +39,8 @@ class TelemetryFrame:
     # Sim's own lap-legitimacy verdict (rF2 convention):
     # 2 = count lap and time, 1 = count lap not time (cut/reset), 0 = neither.
     count_flag: int = 2
+    path_lateral: float = 0.0   # lateral offset from track center path (m)
+    track_edge: float = 6.0     # center path -> edge distance, car's side (m)
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -70,6 +72,8 @@ LAP_CHANNELS = (
     "rpm",
     "pos_x",
     "pos_z",
+    "path_lateral",
+    "track_edge",
 )
 
 

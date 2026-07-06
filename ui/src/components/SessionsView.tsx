@@ -37,9 +37,10 @@ export default function SessionsView({ sessions, onOpen }: Props) {
 
   return (
     <div className="sessions-wrap">
-      {ordered.map((g) => (
-        <section key={g.track} className="track-group">
-          <div className="track-group-head">
+      {ordered.map((g, gi) => (
+        <details key={g.track} className="track-group" open={gi === 0}>
+          <summary className="track-group-head">
+            <span className="chev">▶</span>
             <b>{g.track}</b>
             <span className="meta">
               {g.sessions.length} session{g.sessions.length !== 1 ? "s" : ""} · last {fmtDate(g.lastDriven)}
@@ -47,7 +48,7 @@ export default function SessionsView({ sessions, onOpen }: Props) {
             <span className="best">
               best <b>{fmtTime(g.best)}</b>
             </span>
-          </div>
+          </summary>
           {g.sessions.map((s) => (
             <div className="session-card" key={s.id} onClick={() => onOpen(s.id)} style={{ cursor: "pointer" }}>
               <div className="when">{fmtDate(s.started_at)}</div>
@@ -73,7 +74,7 @@ export default function SessionsView({ sessions, onOpen }: Props) {
               </button>
             </div>
           ))}
-        </section>
+        </details>
       ))}
     </div>
   );

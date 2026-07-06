@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import type { ComparePayload, IdealLap, Insights, LapMeta } from "../api";
-import { fmtTime, getIdeal } from "../api";
+import { fmtTime, getIdeal, getLapData } from "../api";
 import LapList from "./LapList";
 import RacingLine from "./RacingLine";
 import TrackMap from "./TrackMap";
@@ -107,6 +107,52 @@ export default function AnalysisView({
 }: Props) {
   const finalDelta = cmp ? cmp.delta[cmp.delta.length - 1] : null;
   const [ideal, setIdeal] = useState<IdealLap | null>(null);
+  const [soloCmp, setSoloCmp] = useState<ComparePayload | null>(null);
+
+  // Solo mode: one lap picked, no reference — build a playback-only
+  // payload from the lap's own channels so it can still be watched.
+  const soloLap = refId == null || refId === youId
+    ? laps.find((l) => l.id === youId && l.has_data !== false) ?? null
+    : null;
+  useEffect(() => {
+    if (!soloLap || cmp) {
+      setSoloCmp(null);
+      return;
+    }
+    let stale = false;
+    getLapData(soloLap.id)
+      .then((d) => {
+        if (stale) return;
+        const ch = {
+          speed: d.speed,
+          throttle: d.throttle,
+          brake: d.brake,
+          steering: d.steering,
+          gear: d.gear.map((g) => Math.round(g)),
+          lap_time: d.lap_time,
+        };
+        const edge = (d as unknown as { track_edge?: number[] }).track_edge;
+        setSoloCmp({
+          dist: d.lap_dist,
+          delta: d.lap_dist.map(() => 0),
+          lap: ch,
+          ref: ch,
+          map: {
+            x: d.pos_x,
+            z: d.pos_z,
+            you_x: d.pos_x,
+            you_z: d.pos_z,
+            width: edge ? edge.map((e) => Math.min(Math.max(Math.abs(e) * 2, 6), 30)) : undefined,
+          },
+          lap_meta: soloLap,
+          ref_meta: soloLap,
+        });
+      })
+      .catch(() => !stale && setSoloCmp(null));
+    return () => {
+      stale = true;
+    };
+  }, [soloLap?.id, cmp]);
 
   useEffect(() => {
     const m = cmp?.lap_meta;
@@ -185,11 +231,11 @@ export default function AnalysisView({
                 </div>
                 <div className="panel">
                   <h3>Throttle / Brake</h3>
-                  <PedalChart cmp={cmp} />
+                  <PedalChart cmp={cmp} markers={markers} />
                 </div>
                 <div className="panel">
                   <h3>Steering</h3>
-                  <SteeringChart cmp={cmp} />
+                  <SteeringChart cmp={cmp} markers={markers} />
                 </div>
                 {insights && insights.corners.length > 0 && <CornerPanel ins={insights} />}
               </div>
@@ -213,6 +259,23 @@ export default function AnalysisView({
                     <div><span style={{ color: "var(--pb)" }}>●</span> corner markers (T-numbers)</div>
                   </div>
                   <div className="hint">charts: scroll to zoom · drag to box-zoom · double-click resets</div>
+                </div>
+              </div>
+            </div>
+          </>
+        ) : soloCmp ? (
+          <>
+            <div className="compare-head">
+              <span className="you">
+                LAP {soloCmp.lap_meta.lap_number} · {fmtTime(soloCmp.lap_meta.lap_time)}
+              </span>
+              <span className="vs">solo — pick a reference (R) to compare</span>
+            </div>
+            <div className="grid-2col">
+              <div>
+                <div className="panel">
+                  <h3>Lap Playback</h3>
+                  <RacingLine cmp={soloCmp} insights={null} solo />
                 </div>
               </div>
             </div>

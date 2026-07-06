@@ -66,23 +66,20 @@ def compare(lap: dict[str, np.ndarray], ref: dict[str, np.ndarray]) -> Optional[
     delta = delta - delta[0]
 
     round3 = lambda arr: [round(float(v), 3) for v in arr]
-    return {
+    payload_channels = lambda ch: {
+        "speed": round3(ch["speed"]),
+        "throttle": round3(ch["throttle"]),
+        "brake": round3(ch["brake"]),
+        "steering": round3(ch["steering"]),
+        "gear": [int(v) for v in np.round(ch["gear"])],
+        # absolute time at each distance point — the playback clock
+        "lap_time": round3(ch["lap_time"]),
+    }
+    result = {
         "dist": round3(grid),
         "delta": round3(delta),
-        "lap": {
-            "speed": round3(a["speed"]),
-            "throttle": round3(a["throttle"]),
-            "brake": round3(a["brake"]),
-            "steering": round3(a["steering"]),
-            "gear": [int(v) for v in np.round(a["gear"])],
-        },
-        "ref": {
-            "speed": round3(b["speed"]),
-            "throttle": round3(b["throttle"]),
-            "brake": round3(b["brake"]),
-            "steering": round3(b["steering"]),
-            "gear": [int(v) for v in np.round(b["gear"])],
-        },
+        "lap": payload_channels(a),
+        "ref": payload_channels(b),
         # World positions for both laps: the reference line colors the
         # gain/loss map, and the pair together is the racing-line overlay.
         "map": {
@@ -92,6 +89,13 @@ def compare(lap: dict[str, np.ndarray], ref: dict[str, np.ndarray]) -> Optional[
             "you_z": round3(a["pos_z"]),
         },
     }
+    # Track width where recorded (newer laps carry mTrackEdge): total edge-to-
+    # edge width ~ 2x the center-to-edge distance. Older laps fall back to a
+    # constant in the UI.
+    if "track_edge" in b:
+        width = np.clip(np.abs(b["track_edge"]) * 2.0, 6.0, 30.0)
+        result["map"]["width"] = round3(_smooth(width, 15))
+    return result
 
 
 def _smooth(a: np.ndarray, w: int = 7) -> np.ndarray:

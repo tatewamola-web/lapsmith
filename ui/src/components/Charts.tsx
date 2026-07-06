@@ -59,9 +59,10 @@ function baseOpts(width: number, height: number, yLabel: string): uPlot.Options 
     legend: { show: false },
     scales: { x: { time: false } },
     axes: [
-      // X is % of lap: corners land in the same place for every track,
-      // and "70% through the lap" reads more naturally than kilometers.
-      { ...AXIS, size: 28, values: (_u, vs) => vs.map((v) => `${Math.round(v)}%`) },
+      // X is % of lap internally (corners align across tracks), but the
+      // tick labels add nothing — sector lines and corner markers are the
+      // real landmarks, so the axis stays quiet.
+      { ...AXIS, size: 8, values: (_u, vs) => vs.map(() => "") },
       { ...AXIS, size: 52, label: yLabel, labelFont: "10px Inter", labelGap: 2 },
     ],
     series: [{}],
@@ -196,7 +197,7 @@ export function SpeedChart({ cmp, markers }: { cmp: ComparePayload; markers?: Ch
   return <div ref={ref} />;
 }
 
-export function PedalChart({ cmp }: { cmp: ComparePayload }) {
+export function PedalChart({ cmp, markers }: { cmp: ComparePayload; markers?: ChartMarkers }) {
   const p100 = (a: number[]) => a.map((v) => v * 100);
   const data: uPlot.AlignedData = [
     pct(cmp.dist),
@@ -208,7 +209,7 @@ export function PedalChart({ cmp }: { cmp: ComparePayload }) {
   const ref = useUplot(
     (w) => {
       const o = baseOpts(w, 150, "%");
-      o.plugins = [wheelZoomPlugin()];
+      o.plugins = [wheelZoomPlugin(), markersPlugin(markers)];
       o.series.push({ stroke: "#3fb950", width: 1.5 });
       o.series.push({ stroke: "rgba(63,185,80,0.45)", width: 1.2, dash: [4, 4] });
       o.series.push({ stroke: "#f85149", width: 1.5 });
@@ -221,12 +222,12 @@ export function PedalChart({ cmp }: { cmp: ComparePayload }) {
   return <div ref={ref} />;
 }
 
-export function SteeringChart({ cmp }: { cmp: ComparePayload }) {
+export function SteeringChart({ cmp, markers }: { cmp: ComparePayload; markers?: ChartMarkers }) {
   const data: uPlot.AlignedData = [pct(cmp.dist), cmp.lap.steering, cmp.ref.steering];
   const ref = useUplot(
     (w) => {
       const o = baseOpts(w, 110, "steer");
-      o.plugins = [wheelZoomPlugin()];
+      o.plugins = [wheelZoomPlugin(), markersPlugin(markers)];
       o.series.push({ stroke: "#4dd0e1", width: 1.2 });
       o.series.push({ stroke: "#ff8a3d", width: 1.2 });
       return o;

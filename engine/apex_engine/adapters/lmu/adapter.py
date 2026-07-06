@@ -131,6 +131,8 @@ class LMUAdapter(BaseAdapter):
             cur_s2=float(scor_v.mCurSector2),
             in_pits=bool(scor_v.mInPits),
             count_flag=int(scor_v.mCountLapFlag),
+            path_lateral=float(scor_v.mPathLateral),
+            track_edge=float(scor_v.mTrackEdge),
         )
 
     # -- helpers ------------------------------------------------------

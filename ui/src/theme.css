@@ -441,6 +441,59 @@ html, body, #root {
 .stype.qualifying { color: var(--you); }
 .stype.practice { color: var(--text-dim); }
 
+details.track-group > summary.track-group-head {
+  cursor: pointer;
+  list-style: none;
+}
+details.track-group > summary.track-group-head::-webkit-details-marker { display: none; }
+details.track-group > summary .chev { color: var(--text-faint); font-size: 10px; margin-right: 2px; }
+details.track-group[open] > summary .chev { transform: rotate(90deg); display: inline-block; }
+
+/* -- playback ---------------------------------------------------------- */
+
+.playbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+}
+.play-btn {
+  width: 34px; height: 28px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text);
+  cursor: pointer;
+  font-size: 12px;
+}
+.play-btn:hover { border-color: var(--you); color: var(--you); }
+.rate-select {
+  background: var(--surface-2);
+  color: var(--text-dim);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-family: var(--mono);
+  font-size: 11px;
+  padding: 3px 4px;
+}
+.playbar input[type="range"] {
+  flex: 1;
+  accent-color: var(--you);
+  height: 4px;
+}
+.play-clock { font-family: var(--mono); font-size: 12px; color: var(--text); min-width: 64px; text-align: right; }
+
+.play-readout {
+  display: flex;
+  gap: 16px;
+  align-items: baseline;
+  margin-top: 6px;
+  font-family: var(--mono);
+  font-size: 12px;
+}
+.play-readout .loss { color: var(--loss); font-weight: 700; }
+.play-readout .gain { color: var(--gain); font-weight: 700; }
+
 /* -- corner insights -------------------------------------------------------------- */
 
 .corner-table { width: 100%; border-collapse: collapse; font-size: 12px; }

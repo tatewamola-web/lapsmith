@@ -99,7 +99,12 @@ def compare(lap: dict[str, np.ndarray], ref: dict[str, np.ndarray]) -> Optional[
 
 
 def _smooth(a: np.ndarray, w: int = 7) -> np.ndarray:
-    return np.convolve(a, np.ones(w) / w, mode="same")
+    # Edge-replicate before convolving: plain mode="same" zero-pads, which
+    # drags values near the array ends toward 0 — for speed that fakes a
+    # braking zone at the start/finish line, for coordinates a fake kink.
+    pad = w // 2
+    padded = np.pad(np.asarray(a, dtype=float), pad, mode="edge")
+    return np.convolve(padded, np.ones(w) / w, mode="valid")
 
 
 def _find_corner_apexes(dist: np.ndarray, speed: np.ndarray) -> list[int]:
@@ -134,11 +139,23 @@ def _find_corner_apexes_geo(ch: dict[str, np.ndarray]) -> list[int]:
     """
     if "pos_x" not in ch or "pos_z" not in ch:
         return []
-    x, z = _smooth(ch["pos_x"], 9), _smooth(ch["pos_z"], 9)
+    xr, zr = np.asarray(ch["pos_x"], dtype=float), np.asarray(ch["pos_z"], dtype=float)
+    n0 = len(xr)
+    # A lap is a closed loop: pad with wrap-around BEFORE smoothing and
+    # differentiating, so corners at the start/finish line are seen with
+    # real neighboring data instead of edge artifacts.
+    pad = 40
+    closed = bool(np.hypot(xr[0] - xr[-1], zr[0] - zr[-1]) < 40.0) and n0 > 2 * pad
+    if closed:
+        xr = np.concatenate([xr[-pad:], xr, xr[:pad]])
+        zr = np.concatenate([zr[-pad:], zr, zr[:pad]])
+    x, z = _smooth(xr, 9), _smooth(zr, 9)
     dx, dz = np.gradient(x), np.gradient(z)
     ddx, ddz = np.gradient(dx), np.gradient(dz)
     k = np.abs(dx * ddz - dz * ddx) / ((dx * dx + dz * dz) ** 1.5 + 1e-12)
     k = _smooth(k, 9)
+    if closed:
+        k = k[pad:-pad]
 
     in_corner = k > (1.0 / 320.0)  # radius under ~320 m counts as a corner
     # group contiguous curved stretches, bridging gaps < 40 m (10 pts)
@@ -161,21 +178,60 @@ def _find_corner_apexes_geo(ch: dict[str, np.ndarray]) -> list[int]:
             i = j
         else:
             i += 1
-    # The lap's first/last samples get phantom curvature from the smoothing
-    # window edges — a "corner" hugging the start/finish line is an artifact.
-    edge = max(int(n * 0.012), 4)
-    regions = [(a, b) for a, b in regions if a > edge and b < n - edge]
+    # Without wrap-around the first/last samples get phantom curvature from
+    # the smoothing window edges — drop regions hugging the line.
+    if not closed:
+        edge = max(int(n * 0.012), 4)
+        regions = [(a, b) for a, b in regions if a > edge and b < n - edge]
+
+    # A region can span a whole complex (chicane, linked corners). Split it
+    # at distinct curvature peaks: local maxima at least 60 m apart with a
+    # genuine valley between them.
+    split: list[tuple[int, int]] = []
+    for a, b in regions:
+        peaks = [
+            i for i in range(a + 2, b - 1)
+            if k[i] == k[max(a, i - 8):min(b, i + 8) + 1].max() and k[i] > 1.0 / 320.0
+        ]
+        kept: list[int] = []
+        for p in peaks:
+            if not kept:
+                kept.append(p)
+                continue
+            prev = kept[-1]
+            valley = k[prev:p + 1].min()
+            if p - prev >= 15 and valley < 0.6 * min(k[prev], k[p]):
+                kept.append(p)
+            elif k[p] > k[prev]:
+                kept[-1] = p
+        if len(kept) <= 1:
+            split.append((a, b))
+        else:
+            bounds = [a] + [int(np.argmin(k[kept[i]:kept[i + 1] + 1])) + kept[i]
+                            for i in range(len(kept) - 1)] + [b]
+            for i in range(len(kept)):
+                split.append((bounds[i], bounds[i + 1]))
 
     speed = _smooth(ch["speed"])
     apexes = []
-    for a, b in regions:
+    edge = max(int(n * 0.015), 6)
+    for a, b in split:
         seg_v = speed[a:b + 1]
         # slowest point if the corner actually slows the car, else max curvature
         if seg_v.max() - seg_v.min() > 3.0:
-            apexes.append(a + int(np.argmin(seg_v)))
+            apex = a + int(np.argmin(seg_v))
         else:
-            apexes.append(a + int(np.argmax(k[a:b + 1])))
-    return apexes
+            apex = a + int(np.argmax(k[a:b + 1]))
+        # The wrap seam joins two different driven lines at the S/F line,
+        # which can fake a kink there. A corner hugging the line is only
+        # real if speed dips *at the apex itself* (local prominence), not
+        # somewhere else in the region.
+        if apex < edge or apex > n - edge:
+            w0, w1 = max(apex - 15, 0), min(apex + 15, n - 1)
+            if speed[w0:w1 + 1].max() - speed[apex] < 8.0:
+                continue
+        apexes.append(apex)
+    return sorted(set(apexes))
 
 
 def insights(lap: dict[str, np.ndarray], ref: dict[str, np.ndarray],
@@ -214,6 +270,8 @@ def insights(lap: dict[str, np.ndarray], ref: dict[str, np.ndarray],
     # speed-minima fallback when position data is missing.
     apexes = _find_corner_apexes_geo(b) or _find_corner_apexes(grid, b["speed"])
     n = len(grid)
+    from .track_data import assign_names
+    corner_names = assign_names(track, [float(grid[a]) / max_d * 100 for a in apexes])
     corners = []
     for ci, apex in enumerate(apexes):
         prev_apex = apexes[ci - 1] if ci > 0 else 0
@@ -250,11 +308,10 @@ def insights(lap: dict[str, np.ndarray], ref: dict[str, np.ndarray],
         elif loss < -0.03:
             advice.append("faster than the reference here — this corner is a strength")
 
-        from .track_data import match_name
         apex_pct = round(float(grid[apex]) / max_d * 100, 1)
         corners.append({
             "n": ci + 1,
-            "name": match_name(track, apex_pct),
+            "name": corner_names[ci],
             "apex_dist": round(float(grid[apex]), 1),
             "apex_pct": apex_pct,
             "sector": sector_of(float(grid[apex])),

@@ -63,10 +63,18 @@ class LapRecorder:
         if self._current_lap is None:
             self._reset(frame.lap_number)
             self._saw_full_start = frame.lap_dist < 50.0
-        elif frame.lap_number != self._current_lap:
+        elif frame.lap_number == self._current_lap + 1:
+            # Only a clean +1 increment is a completed lap crossing the line.
             self._park(frame)
             self._reset(frame.lap_number)
             self._saw_full_start = True  # subsequent laps start at the line
+        elif frame.lap_number != self._current_lap:
+            # Lap counter reset or jumped (quit to garage, session restart,
+            # car reset): the buffered lap never finished — discard it.
+            logger.info("lap counter %s -> %s: discarding partial lap",
+                        self._current_lap, frame.lap_number)
+            self._reset(frame.lap_number)
+            self._saw_full_start = frame.lap_dist < 50.0
 
         if frame.in_pits:
             self._touched_pits = True
@@ -127,13 +135,18 @@ class LapRecorder:
         # (session ended, game paused).
         elapsed = p["buffer"]["lap_time"][-1]
         lap_time = frame.last_lap_time
-        if lap_time is None or lap_time <= 0 or abs(lap_time - elapsed) > 3.0:
+        official = lap_time is not None and lap_time > 0 and abs(lap_time - elapsed) <= 3.0
+        if not official:
             lap_time = elapsed
 
         track_len = p["context"].track_length or p["max_dist"]
         coverage = (p["max_dist"] - min(p["min_dist"], 0.0)) / max(track_len, 1.0)
+        # A lap can only be valid if the sim itself published its time: a lap
+        # abandoned at the line (session quit) never gets an official time,
+        # so it can never become a personal best.
         valid = (
-            p["saw_full_start"]
+            official
+            and p["saw_full_start"]
             and not p["touched_pits"]
             and not p["cut_detected"]
             and coverage >= MIN_COVERAGE

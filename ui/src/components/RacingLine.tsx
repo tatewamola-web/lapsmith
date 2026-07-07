@@ -19,7 +19,7 @@ interface Props {
 }
 
 function officialLabel(name: string, n: number): string {
-  return name ? name.split(" ")[0] : `T${n}`;
+  return name ? name.split(" ")[0] : `C${n}`;
 }
 
 /** distance (m) a lap had covered at time t, from its lap_time-over-dist curve */

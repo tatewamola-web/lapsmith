@@ -88,7 +88,7 @@ export default function TrackMap({ cmp, insights }: { cmp: ComparePayload; insig
         const nx = cxp - px(j), nz = czp - pz(j);
         const len = Math.hypot(nx, nz) || 1;
         ctx.fillStyle = "rgba(212,160,23,0.95)";
-        const label = c.name ? c.name.split(" ")[0] : `T${c.n}`;
+        const label = c.name ? c.name.split(" ")[0] : `C${c.n}`;
         ctx.fillText(label, cxp + (-nz / len) * 12, czp + (nx / len) * 12 + 3);
       }
     }

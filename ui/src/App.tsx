@@ -52,8 +52,8 @@ export default function App() {
         // default the combo filter to what's being driven (or latest lap)
         setCombo((cur) => {
           if (cur) return cur;
-          if (s.session?.track) return `${s.session.track}|${s.session.car}`;
-          if (l.length > 0) return `${l[0].track}|${l[0].car}`;
+          if (s.session?.track) return `${s.session.track}|${s.session.car_class || s.session.car}`;
+          if (l.length > 0) return `${l[0].track}|${l[0].car_class || l[0].car}`;
           return cur;
         });
         if (!autoPicked.current && l.length > 0) {
@@ -127,21 +127,23 @@ export default function App() {
 
   const session = status?.session;
 
-  // distinct track+car combos across the library, most recent first
+  // distinct track+class combos across the library, most recent first —
+  // PBs and comparisons group by class (Hyper vs GT3), not individual car
+  const comboKey = (l: LapMeta) => `${l.track}|${l.car_class || l.car}`;
   const combos: { key: string; label: string }[] = [];
   const seen = new Set<string>();
   for (const l of laps) {
-    const key = `${l.track}|${l.car}`;
+    const key = comboKey(l);
     if (!seen.has(key)) {
       seen.add(key);
-      const shortCar = l.car.length > 24 ? l.car.slice(0, 22) + "…" : l.car;
-      combos.push({ key, label: `${l.track} · ${shortCar}` });
+      const cls = l.car_class || (l.car.length > 24 ? l.car.slice(0, 22) + "…" : l.car);
+      combos.push({ key, label: `${l.track} · ${cls}` });
     }
   }
   const filteredLaps =
     sessionFilter != null || combo === "all" || !combo
       ? laps
-      : laps.filter((l) => `${l.track}|${l.car}` === combo);
+      : laps.filter((l) => comboKey(l) === combo);
 
   return (
     <div className="app">

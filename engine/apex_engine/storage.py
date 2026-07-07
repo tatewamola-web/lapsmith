@@ -61,11 +61,15 @@ class LapStore:
         cols = {r["name"] for r in con.execute("PRAGMA table_info(laps)")}
         if "session_id" not in cols:
             con.execute("ALTER TABLE laps ADD COLUMN session_id INTEGER")
+        if "car_class" not in cols:
+            con.execute("ALTER TABLE laps ADD COLUMN car_class TEXT NOT NULL DEFAULT ''")
         scols = {r["name"] for r in con.execute("PRAGMA table_info(sessions)")}
         if "source" not in scols:
             con.execute("ALTER TABLE sessions ADD COLUMN source TEXT NOT NULL DEFAULT 'live'")
         if "import_key" not in scols:
             con.execute("ALTER TABLE sessions ADD COLUMN import_key TEXT")
+        if "car_class" not in scols:
+            con.execute("ALTER TABLE sessions ADD COLUMN car_class TEXT NOT NULL DEFAULT ''")
         # Backfill: pre-session laps get one session per game/track/car combo.
         orphans = con.execute(
             "SELECT game, track, car, session_type, MIN(created_at) AS t0"
@@ -88,9 +92,10 @@ class LapStore:
         with self._conn() as con:
             cur = con.execute(
                 "INSERT INTO sessions (started_at, game, track, car, session_type,"
-                " source, import_key) VALUES (?,?,?,?,?,?,?)",
+                " source, import_key, car_class) VALUES (?,?,?,?,?,?,?,?)",
                 (started_at or datetime.now(timezone.utc).isoformat(), ctx.game,
-                 ctx.track, ctx.car, ctx.session_type, source, import_key),
+                 ctx.track, ctx.car, ctx.session_type, source, import_key,
+                 ctx.car_class),
             )
             return cur.lastrowid
 
@@ -101,19 +106,30 @@ class LapStore:
             ).fetchall()
         return {r["import_key"] for r in rows}
 
-    def ideal_lap(self, game: str, track: str, car: str) -> Optional[dict]:
-        """Theoretical best: fastest recorded time in each sector, combined."""
+    def ideal_lap(self, game: str, track: str, car_class: str = "",
+                  car: str = "") -> Optional[dict]:
+        """Theoretical best: fastest recorded time in each sector, combined,
+        grouped by class (per car when class unknown)."""
         with self._conn() as con:
-            row = con.execute(
-                "SELECT MIN(s1) AS s1, MIN(s2) AS s2, MIN(s3) AS s3,"
-                " COUNT(*) AS laps_with_sectors FROM laps"
-                " WHERE valid=1 AND game=? AND track=? AND car=?"
-                " AND s1 IS NOT NULL AND s2 IS NOT NULL AND s3 IS NOT NULL",
-                (game, track, car),
-            ).fetchone()
+            if car_class:
+                row = con.execute(
+                    "SELECT MIN(s1) AS s1, MIN(s2) AS s2, MIN(s3) AS s3,"
+                    " COUNT(*) AS laps_with_sectors FROM laps"
+                    " WHERE valid=1 AND game=? AND track=? AND car_class=?"
+                    " AND s1 IS NOT NULL AND s2 IS NOT NULL AND s3 IS NOT NULL",
+                    (game, track, car_class),
+                ).fetchone()
+            else:
+                row = con.execute(
+                    "SELECT MIN(s1) AS s1, MIN(s2) AS s2, MIN(s3) AS s3,"
+                    " COUNT(*) AS laps_with_sectors FROM laps"
+                    " WHERE valid=1 AND game=? AND track=? AND car=?"
+                    " AND s1 IS NOT NULL AND s2 IS NOT NULL AND s3 IS NOT NULL",
+                    (game, track, car),
+                ).fetchone()
         if row is None or row["s1"] is None:
             return None
-        pb = self.personal_best(game, track, car)
+        pb = self.personal_best(game, track, car_class=car_class, car=car)
         total = row["s1"] + row["s2"] + row["s3"]
         return {
             "s1": row["s1"], "s2": row["s2"], "s3": row["s3"],
@@ -147,13 +163,15 @@ class LapStore:
         with self._conn() as con:
             cur = con.execute(
                 "INSERT INTO laps (created_at, game, track, car, session_type,"
-                " lap_number, lap_time, s1, s2, s3, valid, source, driver, session_id)"
-                " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+                " lap_number, lap_time, s1, s2, s3, valid, source, driver,"
+                " session_id, car_class)"
+                " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
                 (
                     created_at or datetime.now(timezone.utc).isoformat(),
                     lap.context.game, lap.context.track, lap.context.car,
                     lap.context.session_type, lap.lap_number, lap.lap_time,
                     s[0], s[1], s[2], int(lap.valid), source, driver, session_id,
+                    lap.context.car_class,
                 ),
             )
             lap_id = cur.lastrowid
@@ -205,22 +223,35 @@ class LapStore:
         with np.load(path) as z:
             return {k: z[k] for k in z.files}
 
-    def personal_best(self, game: str, track: str, car: str) -> Optional[dict]:
+    def personal_best(self, game: str, track: str, car_class: str = "",
+                      car: str = "") -> Optional[dict]:
+        """Fastest valid lap for the class (falls back to per-car when the
+        class is unknown, e.g. history rows imported before classes existed)."""
         with self._conn() as con:
-            row = con.execute(
-                "SELECT * FROM laps WHERE game=? AND track=? AND car=? AND valid=1"
-                " ORDER BY lap_time ASC LIMIT 1",
-                (game, track, car),
-            ).fetchone()
+            if car_class:
+                row = con.execute(
+                    "SELECT * FROM laps WHERE game=? AND track=? AND car_class=?"
+                    " AND valid=1 ORDER BY lap_time ASC LIMIT 1",
+                    (game, track, car_class),
+                ).fetchone()
+            else:
+                row = con.execute(
+                    "SELECT * FROM laps WHERE game=? AND track=? AND car=?"
+                    " AND valid=1 ORDER BY lap_time ASC LIMIT 1",
+                    (game, track, car),
+                ).fetchone()
         return dict(row) if row else None
 
     def _pb_ids(self) -> set[int]:
-        """Fastest valid lap id per (game, track, car) combo."""
+        """Fastest valid lap id per (game, track, class) — per car when the
+        class is blank."""
         with self._conn() as con:
             rows = con.execute(
                 "SELECT id FROM laps l WHERE valid=1 AND lap_time = ("
-                " SELECT MIN(lap_time) FROM laps"
-                " WHERE valid=1 AND game=l.game AND track=l.track AND car=l.car)"
+                " SELECT MIN(lap_time) FROM laps WHERE valid=1"
+                " AND game=l.game AND track=l.track"
+                " AND ((l.car_class != '' AND car_class = l.car_class)"
+                "   OR (l.car_class = '' AND car = l.car)))"
             ).fetchall()
         return {r["id"] for r in rows}
 

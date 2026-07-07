@@ -11,3 +11,5 @@ graphify-out/
 .claude/settings.local.json
 *.tsbuildinfo
 *.egg-info/
+ui/node_modules/
+

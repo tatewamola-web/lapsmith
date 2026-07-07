@@ -45,3 +45,8 @@ class BaseAdapter(ABC):
     @abstractmethod
     def session(self) -> SessionContext:
         """Current session info (track, car, lengths)."""
+
+    def poll_all(self) -> list:
+        """Frames for other same-class cars, [(slot_id, driver, car, frame)].
+        Optional — sims that can't see other cars return nothing."""
+        return []

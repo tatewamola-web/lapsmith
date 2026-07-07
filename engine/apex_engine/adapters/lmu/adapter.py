@@ -84,6 +84,7 @@ class LMUAdapter(BaseAdapter):
             game=self.game_title,
             track=_decode(info.mTrackName),
             car=_decode(player.mVehicleName) if player is not None else "",
+            car_class=_decode(player.mVehicleClass) if player is not None else "",
             track_length=float(info.mLapDist),
             session_type=_SESSION_TYPES.get(int(info.mSession), "unknown"),
         )
@@ -100,7 +101,9 @@ class LMUAdapter(BaseAdapter):
         tele_v = self._player_telemetry(scor_v.mID)
         if tele_v is None:
             return None
+        return self._build_frame(tele_v, scor_v)
 
+    def _build_frame(self, tele_v, scor_v) -> TelemetryFrame:
         vel = tele_v.mLocalVel
         speed = math.sqrt(vel.x ** 2 + vel.y ** 2 + vel.z ** 2)
         lap_time = max(float(tele_v.mElapsedTime - tele_v.mLapStartET), 0.0)
@@ -134,6 +137,34 @@ class LMUAdapter(BaseAdapter):
             path_lateral=float(scor_v.mPathLateral),
             track_edge=float(scor_v.mTrackEdge),
         )
+
+    def poll_all(self):
+        """Frames for every other car in the player's class — the raw feed
+        for capturing faster drivers' laps live. Returns
+        [(slot_id, driver, car, frame)]. Remote/AI inputs come from the
+        same shared memory the game uses to render them."""
+        if self._tele is None or self._scor is None:
+            return []
+        player = self._player_scoring()
+        if player is None:
+            return []
+        my_class = bytes(player.mVehicleClass)
+        data = self._scor.data
+        tele_by_id = {}
+        tdata = self._tele.data
+        for i in range(min(tdata.mNumVehicles, C.MAX_MAPPED_VEHICLES)):
+            tele_by_id[tdata.mVehicles[i].mID] = tdata.mVehicles[i]
+        out = []
+        for i in range(min(data.mScoringInfo.mNumVehicles, C.MAX_MAPPED_VEHICLES)):
+            sv = data.mVehicles[i]
+            if sv.mIsPlayer or bytes(sv.mVehicleClass) != my_class:
+                continue
+            tv = tele_by_id.get(sv.mID)
+            if tv is None:
+                continue
+            frame = self._build_frame(tv, sv)
+            out.append((int(sv.mID), _decode(sv.mDriverName), _decode(sv.mVehicleName), frame))
+        return out
 
     # -- helpers ------------------------------------------------------
 

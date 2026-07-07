@@ -44,6 +44,11 @@ class Engine:
         self.session_id: Optional[int] = None
         self.connected = False
         self.laps_recorded = 0
+        # One recorder per same-class opponent: their completed laps are
+        # captured live from shared memory — real reference laps from
+        # faster drivers, full telemetry included.
+        self._opponents: dict[int, LapRecorder] = {}
+        self._opponent_meta: dict[int, tuple[str, str]] = {}  # id -> (driver, car)
         self._lock = threading.Lock()
         self._stop = threading.Event()
         self._thread: Optional[threading.Thread] = None
@@ -70,6 +75,48 @@ class Engine:
         lap_id = self.store.save_lap(lap, session_id=self.session_id)
         self.laps_recorded += 1
         logger.info("stored lap id=%d time=%.3f valid=%s", lap_id, lap.lap_time, lap.valid)
+
+    def _feed_opponents(self, adapter):
+        """Record every same-class car; only laps faster than your PB are
+        kept (that's the point — reference laps from quicker drivers)."""
+        try:
+            others = adapter.poll_all()
+        except Exception:
+            return
+        seen = set()
+        for slot_id, driver, car, frame in others:
+            seen.add(slot_id)
+            rec = self._opponents.get(slot_id)
+            if rec is None:
+                ctx = SessionContext(
+                    game=self.session.game, track=self.session.track,
+                    car=car, car_class=self.session.car_class,
+                    track_length=self.session.track_length,
+                    session_type=self.session.session_type,
+                )
+                rec = LapRecorder(
+                    on_lap=lambda lap, d=driver: self._on_opponent_lap(lap, d))
+                rec.set_context(ctx)
+                self._opponents[slot_id] = rec
+            self._opponent_meta[slot_id] = (driver, car)
+            rec.feed(frame)
+        # cars that left the session
+        for gone in set(self._opponents) - seen:
+            self._opponents.pop(gone, None)
+            self._opponent_meta.pop(gone, None)
+
+    def _on_opponent_lap(self, lap, driver: str):
+        if not lap.valid:
+            return
+        pb = self.store.personal_best(lap.context.game, lap.context.track,
+                                      car_class=lap.context.car_class,
+                                      car=lap.context.car)
+        # keep only laps that would teach you something
+        if pb is not None and lap.lap_time >= pb["lap_time"]:
+            return
+        lap_id = self.store.save_lap(lap, source="opponent", driver=driver,
+                                     session_id=self.session_id)
+        logger.info("opponent lap kept: %s %.3f (id=%d)", driver, lap.lap_time, lap_id)
 
     def _run(self):
         adapter = get_adapter(self.adapter_name)
@@ -105,6 +152,7 @@ class Engine:
                     self.recorder.feed(frame)
                     with self._lock:
                         self.latest = frame
+                self._feed_opponents(adapter)
                 time.sleep(interval)
             except Exception:
                 logger.exception("engine loop error; reconnecting")
@@ -186,8 +234,8 @@ def create_app(adapter_name: str = "sim", data_dir: Path = Path("data")) -> Fast
         return engine.store.list_laps(track=track, car=car, session_id=session)
 
     @app.get("/api/pb")
-    def pb(game: str, track: str, car: str):
-        lap = engine.store.personal_best(game, track, car)
+    def pb(game: str, track: str, car: str = "", car_class: str = ""):
+        lap = engine.store.personal_best(game, track, car_class=car_class, car=car)
         return lap if lap else Response(status_code=404)
 
     @app.get("/api/laps/{lap_id}")
@@ -239,8 +287,8 @@ def create_app(adapter_name: str = "sim", data_dir: Path = Path("data")) -> Fast
         return payload
 
     @app.get("/api/ideal")
-    def ideal(game: str, track: str, car: str):
-        result = engine.store.ideal_lap(game, track, car)
+    def ideal(game: str, track: str, car: str = "", car_class: str = ""):
+        result = engine.store.ideal_lap(game, track, car_class=car_class, car=car)
         return result if result else Response(status_code=404)
 
     @app.post("/api/import/game-history")

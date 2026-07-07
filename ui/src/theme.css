@@ -278,6 +278,7 @@ html, body, #root {
 .badge.imported { background: rgba(77, 208, 225, 0.12); color: var(--you); }
 .badge.cut { background: rgba(248, 81, 73, 0.12); color: var(--loss); }
 .badge.log { background: rgba(139, 148, 158, 0.15); color: var(--text-dim); }
+.badge.rival { background: rgba(198, 120, 221, 0.15); color: #c678dd; }
 
 .pick {
   font-family: var(--mono);

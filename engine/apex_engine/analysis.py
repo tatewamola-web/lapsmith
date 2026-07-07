@@ -112,8 +112,11 @@ def compare(lap: dict[str, np.ndarray], ref: dict[str, np.ndarray]) -> Optional[
             length = float(np.sum(np.hypot(np.diff(cx), np.diff(cz))))
             candidates.append((length, cx, cz))
         _, cx, cz = min(candidates, key=lambda c: c[0])
-        result["map"]["center_x"] = round3(_smooth(cx, 11))
-        result["map"]["center_z"] = round3(_smooth(cz, 11))
+        # The sim's "center path" wobbles (it's an AI line, not road center);
+        # heavy smoothing (~250 m window) turns it into a believable road so
+        # the driven line visibly moves across it toward the limits.
+        result["map"]["center_x"] = round3(_smooth(cx, 61))
+        result["map"]["center_z"] = round3(_smooth(cz, 61))
     return result
 
 

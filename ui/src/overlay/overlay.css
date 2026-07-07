@@ -1,0 +1,88 @@
+/* Overlay: readable over any game footage, minimal footprint. */
+
+html, body, #root { margin: 0; height: 100%; background: transparent; overflow: hidden; }
+* { box-sizing: border-box; font-family: "JetBrains Mono", ui-monospace, monospace; }
+
+.ovl {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: rgba(10, 12, 15, 0.72);
+  border: 1px solid rgba(77, 208, 225, 0.25);
+  border-radius: 8px;
+  color: #e8eaed;
+  overflow: hidden;
+}
+
+.ovl-grip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  background: rgba(20, 24, 29, 0.9);
+  -webkit-app-region: drag;         /* drag to move the window */
+  cursor: move;
+  font-size: 9px;
+  letter-spacing: 0.3em;
+  color: #8b949e;
+}
+.ovl-title { font-weight: 700; }
+.ovl-sub { font-size: 8px; letter-spacing: 0.05em; }
+.ovl-gear {
+  margin-left: auto;
+  -webkit-app-region: no-drag;
+  background: none;
+  border: none;
+  color: #8b949e;
+  cursor: pointer;
+  font-size: 12px;
+}
+.ovl-gear:hover { color: #4dd0e1; }
+
+.ovl-menu {
+  padding: 6px 10px;
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  font-size: 10px;
+  background: rgba(20, 24, 29, 0.9);
+}
+.ovl-menu label { display: flex; gap: 4px; align-items: center; cursor: pointer; }
+.ovl-hint { color: #58626e; font-size: 8.5px; margin-left: auto; }
+
+.ovl-row.pedals {
+  flex: 1;
+  display: flex;
+  gap: 14px;
+  align-items: stretch;
+  padding: 8px 12px;
+  min-height: 0;
+}
+.pcol { display: flex; flex-direction: column; align-items: center; gap: 3px; }
+.pcol.ghost { opacity: 0.65; }
+.plabel { font-size: 8px; letter-spacing: 0.2em; color: #8b949e; }
+.pbars { display: flex; gap: 5px; flex: 1; align-items: flex-end; min-height: 0; }
+.pbar {
+  width: 16px;
+  height: 100%;
+  background: rgba(38, 45, 54, 0.8);
+  border-radius: 3px;
+  position: relative;
+  overflow: hidden;
+}
+.pfill { position: absolute; bottom: 0; left: 0; right: 0; }
+.pfill.throttle { background: #3fb950; }
+.pfill.brake { background: #f85149; }
+
+.ovl-speed { margin-left: auto; text-align: right; align-self: center; }
+.ovl-speed .big { font-size: 30px; font-weight: 700; line-height: 1; }
+.ovl-speed .small { font-size: 9px; color: #8b949e; }
+
+.ovl-row.times {
+  display: flex;
+  gap: 12px;
+  padding: 4px 12px 7px;
+  font-size: 10.5px;
+  color: #b8bfc6;
+}
+.ovl-row.times .gold { color: #d4a017; margin-left: auto; }

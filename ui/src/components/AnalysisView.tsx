@@ -162,7 +162,7 @@ export default function AnalysisView({
       return;
     }
     let stale = false;
-    getIdeal(m.game, m.track, m.car)
+    getIdeal(m.game, m.track, m.car, m.car_class || "")
       .then((i) => !stale && setIdeal(i))
       .catch(() => !stale && setIdeal(null));
     return () => {

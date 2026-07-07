@@ -15,6 +15,7 @@ export interface LapMeta {
   valid: number;
   source: string;
   driver: string;
+  car_class?: string;
   is_pb: boolean;
   has_data?: boolean;
 }
@@ -93,7 +94,7 @@ export interface Status {
   adapter: string;
   connected: boolean;
   live: boolean;
-  session: { game: string; track: string; car: string; track_length: number; session_type: string };
+  session: { game: string; track: string; car: string; car_class?: string; track_length: number; session_type: string };
   laps_recorded: number;
 }
 
@@ -116,8 +117,8 @@ export async function getLapData(id: number): Promise<LapChannels> {
   return r.json();
 }
 
-export async function getPB(game: string, track: string, car: string): Promise<LapMeta | null> {
-  const q = new URLSearchParams({ game, track, car });
+export async function getPB(game: string, track: string, car: string, carClass = ""): Promise<LapMeta | null> {
+  const q = new URLSearchParams({ game, track, car, car_class: carClass });
   const r = await fetch(`/api/pb?${q}`);
   return r.ok ? r.json() : null;
 }
@@ -165,8 +166,8 @@ export interface IdealLap {
   gap_to_pb: number | null;
 }
 
-export async function getIdeal(game: string, track: string, car: string): Promise<IdealLap | null> {
-  const q = new URLSearchParams({ game, track, car });
+export async function getIdeal(game: string, track: string, car: string, carClass = ""): Promise<IdealLap | null> {
+  const q = new URLSearchParams({ game, track, car, car_class: carClass });
   const r = await fetch(`/api/ideal?${q}`);
   return r.ok ? r.json() : null;
 }

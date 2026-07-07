@@ -131,12 +131,14 @@ def import_results(store: LapStore, lmu_root: Optional[Path] = None) -> dict:
 
             laps_to_add = []
             car = ""
+            car_class = ""
             for drv in section.iter("Driver"):
                 name = (drv.findtext("Name") or "").strip()
                 is_player = (drv.findtext("isPlayer") or "0").strip() == "1"
                 if not is_player or (me and name != me):
                     continue
                 car = (drv.findtext("VehName") or "").strip()
+                car_class = (drv.findtext("CarClass") or "").strip()
                 for lap_el in drv.iter("Lap"):
                     t = (lap_el.text or "").strip()
                     if not t or t.startswith("--"):
@@ -161,7 +163,7 @@ def import_results(store: LapStore, lmu_root: Optional[Path] = None) -> dict:
                 continue
             ctx = SessionContext(
                 game="Le Mans Ultimate", track=track, car=car,
-                session_type=_session_type(section.tag),
+                car_class=car_class, session_type=_session_type(section.tag),
             )
             session_id = store.start_session(
                 ctx, started_at=started, source="game-log", import_key=key)

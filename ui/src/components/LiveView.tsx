@@ -19,10 +19,10 @@ export default function LiveView({ frame, status }: Props) {
   useEffect(() => {
     const s = status?.session;
     if (!s || !s.track) return;
-    const key = `${s.game}|${s.track}|${s.car}`;
+    const key = `${s.game}|${s.track}|${s.car_class || s.car}`;
     if (key === refKey) return;
     setRefKey(key);
-    getPB(s.game, s.track, s.car)
+    getPB(s.game, s.track, s.car, s.car_class || "")
       .then((pb) => (pb ? getLapData(pb.id) : null))
       .then((data) => setRefLine(data as LapChannels | null))
       .catch(() => setRefLine(null));

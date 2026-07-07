@@ -73,6 +73,11 @@ export default function LapList({
                 {lap.is_pb && <span className="badge pb">PB</span>}
                 {lap.source === "imported" && <span className="badge imported">IMP</span>}
                 {lap.source === "game-log" && <span className="badge log">LOG</span>}
+                {lap.source === "opponent" && (
+                  <span className="badge rival" title={`Captured live from ${lap.driver}`}>
+                    {lap.driver.split(" ")[0].toUpperCase()}
+                  </span>
+                )}
                 {!lap.valid && <span className="badge cut">INV</span>}
                 <span className="lap-actions" onClick={(e) => e.stopPropagation()}>
                   {analyzable && (

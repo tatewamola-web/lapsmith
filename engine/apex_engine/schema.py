@@ -53,6 +53,7 @@ class SessionContext:
     game: str = ""
     track: str = ""
     car: str = ""
+    car_class: str = ""           # Hyper / LMP2 / GT3 ... PBs group on this
     track_length: float = 0.0     # meters
     session_type: str = ""        # practice / qualifying / race
 

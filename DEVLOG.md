@@ -273,6 +273,38 @@ session groups are collapsible.
 
 ---
 
+## 2026-07-06 — Day 3 (later): Published, then humbled by Sebring
+
+### Shipped: github.com/tatewamola-web/lapsmith
+Renamed APEX → **Lapsmith** (a smith forges laps), MIT licensed, public.
+
+### Bug: quitting a session mid-lap forged a personal best
+Two Sebring "PBs" (62.4 s, 60.0 s) were laps that never finished: quitting
+to the garage resets the sim's lap counter, which the recorder read as a
+lap completion — and the abandoned lap's short final sector made it "fast."
+**Fix, two layers:** only a clean +1 lap-number increment counts as a
+completed lap (resets discard the partial), and a lap is only valid if the
+sim published its official time — no official time, no PB, ever.
+**Lesson:** never infer an event from a side effect (counter changed) when
+the authoritative signal (official lap time issued) exists.
+
+### Bug: the smoothing function was quietly corrupting lap edges
+`convolve(mode="same")` zero-pads, so smoothed speed at the start/finish
+line sagged toward zero (270 → 192 km/h) and smoothed coordinates bent
+toward the origin — faking a braking zone and a kink right at the line.
+Every consumer of smoothed data inherited the lie. **Fix:** edge-replicate
+padding in one place; phantom corners at 0%/100% vanished on every track.
+**Lesson:** library defaults have opinions. Know what your padding does.
+
+### Corner detection, calibrated against Sebring School Circuit
+User report: corner count wrong. Three upgrades, verified on real laps:
+wrap-around differentiation (closed circuits have no "ends"), splitting
+curved regions at distinct curvature peaks (Ascari is three corners, not
+one blob), and one-anchor-one-corner naming. Monza now resolves all 11
+official turns across 9 zones; Sebring School shows its 7 real corners.
+
+---
+
 ## Design principles that emerged (running list)
 
 1. **Wall off what varies.** One adapter per sim; everything else is shared.

@@ -1,8 +1,8 @@
-# APEX one-click launcher — no dev tools, no Claude, just the app.
+# Lapsmith one-click launcher — no dev tools, just the app.
 # Starts the engine (which also serves the UI) and opens the browser.
 #
-#   scripts\apex.ps1            # Le Mans Ultimate (default)
-#   scripts\apex.ps1 -Adapter sim   # demo mode without a game
+#   scripts\lapsmith.ps1            # Le Mans Ultimate (default)
+#   scripts\lapsmith.ps1 -Adapter sim   # demo mode without a game
 param([string]$Adapter = "lmu")
 
 $root = Split-Path $PSScriptRoot -Parent
@@ -23,5 +23,5 @@ if (-not $up) {
 }
 
 Start-Process "http://localhost:8000"
-Write-Host "APEX running at http://localhost:8000 (engine adapter: $Adapter)"
+Write-Host "Lapsmith running at http://localhost:8000 (engine adapter: $Adapter)"
 Write-Host "Close the minimized python window to stop the engine."

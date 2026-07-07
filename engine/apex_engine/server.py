@@ -115,7 +115,7 @@ class Engine:
 
 def create_app(adapter_name: str = "sim", data_dir: Path = Path("data")) -> FastAPI:
     engine = Engine(adapter_name, data_dir)
-    app = FastAPI(title="Apex Telemetry Engine")
+    app = FastAPI(title="Lapsmith Telemetry Engine")
     app.state.engine = engine
 
     app.add_middleware(
@@ -259,7 +259,7 @@ def create_app(adapter_name: str = "sim", data_dir: Path = Path("data")) -> Fast
             content=data,
             media_type="application/zip",
             headers={"Content-Disposition":
-                     f'attachment; filename="lap_{lap_id}.apexlap"'},
+                     f'attachment; filename="lap_{lap_id}.lapsmith"'},
         )
 
     @app.post("/api/laps/import")

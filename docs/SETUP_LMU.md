@@ -8,7 +8,7 @@ Windows builds this is **built into the game** — no third-party plugin needed.
 1. Launch LMU.
 2. **Settings → Gameplay → Enable Plugins: ON**.
 3. Restart LMU if you changed the setting.
-4. Start the engine: `./scripts/lmu.ps1` (or `engine\.venv\Scripts\python -m apex_engine --adapter lmu`).
+4. Start the engine: `./scripts/lapsmith.ps1` (or `engine\.venv\Scripts\python -m apex_engine --adapter lmu`).
 5. Open http://localhost:5173 and enter a session in game. The header dot
    turns green (LIVE) once frames arrive; laps appear as you complete them.
 

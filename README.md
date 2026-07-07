@@ -1,8 +1,9 @@
-# APEX — Sim Racing Telemetry Analysis
+# Lapsmith — Sim Racing Telemetry Analysis
 
-A desktop telemetry platform for sim racing: record every lap you drive,
-compare laps corner-by-corner against faster reference laps, and see exactly
-where the time is lost.
+*Forge better laps.* A desktop telemetry platform for sim racing: record
+every lap you drive, compare laps corner-by-corner against faster reference
+laps, watch ghost playback of any two laps racing each other, and see
+exactly where the time is lost.
 
 Built to support many sims through one adapter architecture. First supported
 game: **Le Mans Ultimate**. Designed-for next: iRacing, ACC, Assetto Corsa.
@@ -26,7 +27,7 @@ game: **Le Mans Ultimate**. Designed-for next: iRacing, ACC, Assetto Corsa.
   arrays. Personal bests are tracked per game + track + car.
 - **Analysis** compares laps *by track position, not by time* — so corners
   line up — and computes the time-delta curve between any two laps.
-- **Reference laps travel as `.apexlap` files** — export yours, import a
+- **Reference laps travel as `.lapsmith` files** — export yours, import a
   faster friend's, same mechanism a coach or world-record lap would use.
 - **UI** is a dark, data-dense analysis screen: delta graph, speed/pedal/
   steering traces with synced cursors, and a track map colored by where you
@@ -35,8 +36,8 @@ game: **Le Mans Ultimate**. Designed-for next: iRacing, ACC, Assetto Corsa.
 ## Quick start
 
 ```powershell
-./scripts/apex.ps1              # one click: engine + UI at http://localhost:8000
-./scripts/apex.ps1 -Adapter sim # demo mode, no game needed
+./scripts/lapsmith.ps1              # one click: engine + UI at http://localhost:8000
+./scripts/lapsmith.ps1 -Adapter sim # demo mode, no game needed
 ```
 
 The engine serves the built UI itself — no dev tools or other programs

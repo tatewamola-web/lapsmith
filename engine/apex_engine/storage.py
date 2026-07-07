@@ -1,6 +1,6 @@
 """Lap storage: SQLite for metadata, .npz files for channel data.
 
-Also implements the .apexlap interchange format — a zip holding the lap's
+Also implements the .lapsmith interchange format — a zip holding the lap's
 metadata (JSON) and channels (npz) — used for sharing reference laps
 between drivers. A world-record or coach lap arrives the same way your
 friend's lap does: as a file.

@@ -142,7 +142,7 @@ export default function App() {
   return (
     <div className="app">
       <header className="header">
-        <span className="brand">APEX</span>
+        <span className="brand">LAPSMITH</span>
         <nav className="tabs">
           {(["live", "analysis", "sessions"] as Tab[]).map((t) => (
             <button key={t} className={`tab ${tab === t ? "active" : ""}`} onClick={() => setTab(t)}>

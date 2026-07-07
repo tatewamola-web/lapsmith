@@ -1,4 +1,9 @@
-# APEX Development Log
+# Lapsmith Development Log
+
+*(The app was called APEX for its first three days — entries below keep
+that name where it was true at the time. Renamed to **Lapsmith** on
+2026-07-06 when publishing to GitHub: a smith forges things by hand,
+iteratively. That's what this app helps you do to laps.)*
 
 A running record of problems, solutions, and design choices — written to be
 mined for essays later. Each entry: what happened, what we did, and why it

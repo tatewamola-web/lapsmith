@@ -285,7 +285,9 @@ export default function AnalysisView({
           <div className="placeholder">
             {laps.length === 0
               ? "No laps here yet. Drive — laps appear as you complete them."
-              : "Pick a lap to analyze (A) and a reference lap (R) from the list."}
+              : laps.every((l) => l.has_data === false)
+                ? "This session was imported from the game's logs: lap and sector times only (shown on the left). Trace analysis, racing lines, and playback need laps recorded live with the engine running."
+                : "Pick a lap to analyze (A) and a reference lap (R) from the list."}
           </div>
         )}
       </main>

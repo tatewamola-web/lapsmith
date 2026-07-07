@@ -22,6 +22,17 @@ export default function LapList({
   const [validOnly, setValidOnly] = useState(false);
   const shown = validOnly ? laps.filter((l) => l.valid) : laps;
 
+  // Purple = fastest sector among the laps in view (motorsport convention).
+  const best = { s1: Infinity, s2: Infinity, s3: Infinity };
+  for (const l of shown) {
+    if (!l.valid) continue;
+    if (l.s1 != null && l.s1 < best.s1) best.s1 = l.s1;
+    if (l.s2 != null && l.s2 < best.s2) best.s2 = l.s2;
+    if (l.s3 != null && l.s3 < best.s3) best.s3 = l.s3;
+  }
+  const sectorCls = (valid: boolean, v: number | null, b: number) =>
+    valid && v != null && Math.abs(v - b) < 0.005 ? "sec purple" : "sec";
+
   return (
     <div>
       <div className="laplist-head" style={{ flexWrap: "wrap" }}>
@@ -94,9 +105,17 @@ export default function LapList({
                 </span>
               </div>
               <div className="lap-row-sectors">
-                {lap.s1 != null && lap.s2 != null && lap.s3 != null
-                  ? `${lap.s1.toFixed(2)} · ${lap.s2.toFixed(2)} · ${lap.s3.toFixed(2)}`
-                  : "no sector data"}
+                {lap.s1 != null && lap.s2 != null && lap.s3 != null ? (
+                  <>
+                    <span className={sectorCls(!!lap.valid, lap.s1, best.s1)}>{lap.s1.toFixed(2)}</span>
+                    {" · "}
+                    <span className={sectorCls(!!lap.valid, lap.s2, best.s2)}>{lap.s2.toFixed(2)}</span>
+                    {" · "}
+                    <span className={sectorCls(!!lap.valid, lap.s3, best.s3)}>{lap.s3.toFixed(2)}</span>
+                  </>
+                ) : (
+                  "no sector data"
+                )}
               </div>
             </div>
           );

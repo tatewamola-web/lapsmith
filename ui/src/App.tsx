@@ -117,7 +117,11 @@ export default function App() {
 
   const openSession = useCallback((id: number) => {
     setSessionFilter(id);
-    autoPicked.current = false; // re-auto-pick within this session
+    // Clear the previous comparison so a history-only session never shows
+    // another session's stale charts; auto-pick re-runs on the new laps.
+    setYouId(null);
+    setRefId(null);
+    autoPicked.current = false;
     setTab("analysis");
   }, []);
 

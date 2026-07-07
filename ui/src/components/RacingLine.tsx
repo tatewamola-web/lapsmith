@@ -131,8 +131,12 @@ export default function RacingLine({ cmp, insights, solo = false }: Props) {
     const PZ = (v: number) => (oz + (maxZ - v) * fit) * k + ty;
     const pxPerM = fit * k;
 
-    // track corridor: stroke the reference line at track width. Real width
-    // where the lap recorded mTrackEdge; ~11 m otherwise.
+    // track corridor: stroke the real centerline (reconstructed from the
+    // car's recorded lateral offset) at track width, so driven lines
+    // visibly move across the road toward the limits. Older laps without
+    // centerline data fall back to the reference line at ~11 m.
+    const cxArr = cmp.map.center_x ?? x;
+    const czArr = cmp.map.center_z ?? z;
     const widths = cmp.map.width;
     ctx.lineJoin = "round";
     ctx.lineCap = "round";
@@ -143,8 +147,8 @@ export default function RacingLine({ cmp, insights, solo = false }: Props) {
       const w = widths ? widths[Math.min(s + chunk / 2, widths.length - 1)] : 11;
       ctx.lineWidth = Math.max(w * pxPerM, 3);
       ctx.beginPath();
-      ctx.moveTo(PX(x[s]), PZ(z[s]));
-      for (let i = s + 1; i <= e; i++) ctx.lineTo(PX(x[i]), PZ(z[i]));
+      ctx.moveTo(PX(cxArr[s]), PZ(czArr[s]));
+      for (let i = s + 1; i <= e; i++) ctx.lineTo(PX(cxArr[i]), PZ(czArr[i]));
       ctx.stroke();
     }
 

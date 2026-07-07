@@ -112,7 +112,10 @@ def import_results(store: LapStore, lmu_root: Optional[Path] = None) -> dict:
         race = root.find("RaceResults")
         if race is None:
             continue
-        track = (race.findtext("TrackVenue") or "").strip()
+        # TrackCourse is the layout actually driven (e.g. "Sebring School
+        # Circuit"); TrackVenue is just the facility. Mixing layouts would
+        # blend their lap times, PBs, and ideal laps.
+        track = (race.findtext("TrackCourse") or race.findtext("TrackVenue") or "").strip()
         when_str = (race.findtext("TimeString") or "").strip()
         try:
             started = datetime.strptime(when_str, "%Y/%m/%d %H:%M:%S").isoformat()

@@ -33,7 +33,15 @@ export interface ComparePayload {
   delta: number[];
   lap: ChannelSet;
   ref: ChannelSet;
-  map: { x: number[]; z: number[]; you_x?: number[]; you_z?: number[]; width?: number[] };
+  map: {
+    x: number[];
+    z: number[];
+    you_x?: number[];
+    you_z?: number[];
+    width?: number[];
+    center_x?: number[];
+    center_z?: number[];
+  };
   lap_meta: LapMeta;
   ref_meta: LapMeta;
 }

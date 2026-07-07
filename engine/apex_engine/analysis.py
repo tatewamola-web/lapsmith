@@ -95,6 +95,25 @@ def compare(lap: dict[str, np.ndarray], ref: dict[str, np.ndarray]) -> Optional[
     if "track_edge" in b:
         width = np.clip(np.abs(b["track_edge"]) * 2.0, 6.0, 30.0)
         result["map"]["width"] = round3(_smooth(width, 15))
+
+    # True track centerline: the driven position minus the recorded lateral
+    # offset along the local normal. The sim doesn't document the sign of
+    # mPathLateral, so try both and keep the smoother candidate — the real
+    # center path is smoother than a doubly-wobbling wrong-sign one.
+    if "path_lateral" in b and "pos_x" in b:
+        px, pz = _smooth(b["pos_x"], 9), _smooth(b["pos_z"], 9)
+        lat = _smooth(b["path_lateral"], 9)
+        tx, tz = np.gradient(px), np.gradient(pz)
+        norm = np.hypot(tx, tz) + 1e-9
+        nx, nz = -tz / norm, tx / norm  # left-hand normal
+        candidates = []
+        for s in (1.0, -1.0):
+            cx, cz = px - s * lat * nx, pz - s * lat * nz
+            length = float(np.sum(np.hypot(np.diff(cx), np.diff(cz))))
+            candidates.append((length, cx, cz))
+        _, cx, cz = min(candidates, key=lambda c: c[0])
+        result["map"]["center_x"] = round3(_smooth(cx, 11))
+        result["map"]["center_z"] = round3(_smooth(cz, 11))
     return result
 
 

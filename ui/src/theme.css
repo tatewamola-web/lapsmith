@@ -235,6 +235,7 @@ html, body, #root {
   padding-left: 34px;
   margin-top: 2px;
 }
+.sec.purple { color: #c678dd; font-weight: 700; }
 
 .laplist-scroll { overflow-x: auto; }
 .laplist { width: 100%; border-collapse: collapse; font-family: var(--mono); font-size: 12px; }

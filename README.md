@@ -1,69 +1,96 @@
-# Lapsmith — Sim Racing Telemetry Analysis
+# Lapsmith
 
-*Forge better laps.* A desktop telemetry platform for sim racing: record
-every lap you drive, compare laps corner-by-corner against faster reference
-laps, watch ghost playback of any two laps racing each other, and see
-exactly where the time is lost.
+**Forge better laps.** A free, open-source telemetry platform for sim racing —
+record every lap you drive, see corner-by-corner where the time is lost, and
+watch any two laps race each other as ghosts.
 
-Built to support many sims through one adapter architecture. First supported
-game: **Le Mans Ultimate**. Designed-for next: iRacing, ACC, Assetto Corsa.
+![Lapsmith analysis view](docs/img/analysis.png)
 
-## How it works
+## Why Lapsmith
 
-```
-┌─────────────┐   normalized    ┌──────────────┐   REST + WebSocket   ┌─────────┐
-│ Game adapter │ ──── frames ──▶ │ Engine        │ ──────────────────▶ │ UI       │
-│ (LMU, sim,   │    (50 Hz)      │  · recorder   │                     │ analysis │
-│  iracing...) │                 │  · lap store  │                     │ overlays │
-└─────────────┘                 │  · analysis   │                     └─────────┘
-                                └──────────────┘
-```
+Most drivers know *that* they're slow somewhere. Telemetry tools show you
+*where*. Lapsmith goes one further and tells you *why* — in plain English:
 
-- **Adapters** translate each sim's raw telemetry into one normalized format
-  (`engine/apex_engine/adapters/`). Adding a game = writing one adapter.
-- **Recorder** watches the stream and cuts it into laps, with validity rules
-  (full track coverage, no pit visits).
-- **Storage** keeps lap metadata in SQLite and channel data in compressed
-  arrays. Personal bests are tracked per game + track + car.
-- **Analysis** compares laps *by track position, not by time* — so corners
-  line up — and computes the time-delta curve between any two laps.
-- **Reference laps travel as `.lapsmith` files** — export yours, import a
-  faster friend's, same mechanism a coach or world-record lap would use.
-- **UI** is a dark, data-dense analysis screen: delta graph, speed/pedal/
-  steering traces with synced cursors, and a track map colored by where you
-  gain or lose time.
+> **T4-5 Variante della Roggia · +1.427s** — carrying 11 km/h less at the
+> apex; back to full throttle 16m later
+
+## Features
+
+- **Corner-by-corner coaching** — corners detected automatically from the
+  geometry of your driven line, matched to their real names, each scored
+  with time lost/gained, braking point, apex speed, and throttle comparison
+- **Ghost playback** — two laps replay on a shared clock around the track
+  map; scrub, slow-mo, and watch exactly where the reference pulls away
+- **Racing line comparison** — both driven lines overlaid inside the real
+  track corridor, zoomable per corner
+- **Time-delta analysis** — the classic delta curve plus speed / pedals /
+  steering traces on a synced distance axis with sector and corner markers
+- **Full lap history** — imports your past lap and sector times straight
+  from the game's own session logs, back to your first drive
+- **Personal bests & the ideal lap** — PBs tracked per track + car, plus a
+  theoretical best from your fastest sectors combined
+- **Session library** — every stint grouped by track, color-coded by
+  session type, purple-highlighted best sectors
+- **Cut-lap protection** — laps the sim refuses to count (track cuts,
+  resets, quitting mid-lap) can never become your PB
+- **Runs 100% locally** — your data stays on your machine, in an open
+  SQLite + NumPy format you can inspect yourself
+
+## Supported sims
+
+| Sim | Status |
+| --- | ------ |
+| Le Mans Ultimate | ✅ supported (shared memory, live + history import) |
+| iRacing | 🔜 planned — adapter architecture is ready |
+| Assetto Corsa Competizione | 🔜 planned |
+| Assetto Corsa | 🔜 planned |
+
+Adding a sim means writing **one adapter** (~150 lines): everything else —
+recording, analysis, UI — is sim-agnostic. Contributions welcome.
 
 ## Quick start
 
 ```powershell
-./scripts/lapsmith.ps1              # one click: engine + UI at http://localhost:8000
+git clone https://github.com/tatewamola-web/lapsmith
+cd lapsmith
+# engine (Python 3.10+)
+uv venv engine\.venv && uv pip install -e engine --python engine\.venv
+# ui (Node 20+)
+cd ui && npm install && npm run build && cd ..
+# run — opens http://localhost:8000
+./scripts/lapsmith.ps1              # Le Mans Ultimate
 ./scripts/lapsmith.ps1 -Adapter sim # demo mode, no game needed
 ```
 
-The engine serves the built UI itself — no dev tools or other programs
-required. For UI development with hot reload:
+For LMU: enable **Settings → Gameplay → Enable Plugins**, then drive.
+Details in [docs/SETUP_LMU.md](docs/SETUP_LMU.md).
 
-```powershell
-./scripts/dev.ps1        # engine with simulated driver + Vite dev server (:5173)
-```
-
-The simulated adapter drives realistic, imperfect laps around a synthetic
-circuit so the whole app can be developed and demoed without a sim running.
-
-## With Le Mans Ultimate
-
-See [docs/SETUP_LMU.md](docs/SETUP_LMU.md). Short version: enable plugins in
-LMU's gameplay settings, then:
-
-```powershell
-./scripts/lmu.ps1
-```
-
-## Project layout
+## How it works
 
 ```
-engine/   Python telemetry engine (FastAPI, numpy)
-ui/       React + Vite analysis UI (uPlot charts)
-docs/     per-sim setup guides
-scripts/  one-command launchers
+┌──────────────┐  normalized   ┌───────────────┐  REST + WebSocket  ┌──────────┐
+│ Game adapter  │ ── frames ──▶ │ Engine         │ ─────────────────▶ │ UI        │
+│ (LMU, sim...) │   (50 Hz)     │ record·analyze │                    │ React     │
+└──────────────┘               └───────────────┘                    └──────────┘
 ```
+
+Laps are compared **by track position, not by time**, so corners line up
+between any two laps — the same principle professional motorsport telemetry
+uses. The full build story, including every bug reality threw at us, lives
+in [DEVLOG.md](DEVLOG.md).
+
+## Roadmap
+
+- In-game overlay widgets (live delta bar, input traces, track map)
+- More sims (iRacing first)
+- Lap file sharing (`.lapsmith` files already export/import)
+- Community reference laps
+
+## Contributing & community
+
+Issues, ideas, and adapter contributions are all welcome — open an
+[issue](https://github.com/tatewamola-web/lapsmith/issues) or a PR.
+If Lapsmith helped you find time, a ⭐ helps others find Lapsmith.
+
+Built by [Tate Wamola](https://github.com/tatewamola-web), a high-school
+sim racer who wanted to know where the tenths were hiding. MIT licensed.

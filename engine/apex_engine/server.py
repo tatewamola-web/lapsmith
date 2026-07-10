@@ -108,11 +108,14 @@ class Engine:
     def _on_opponent_lap(self, lap, driver: str):
         if not lap.valid:
             return
-        pb = self.store.personal_best(lap.context.game, lap.context.track,
-                                      car_class=lap.context.car_class,
-                                      car=lap.context.car)
-        # keep only laps that would teach you something
-        if pb is not None and lap.lap_time >= pb["lap_time"]:
+        # Keep a lap only if it beats everything already in the library for
+        # this combo — yours AND previously kept opponent laps. Without the
+        # "everything" part, a fresh track/class combo (no PB yet) floods
+        # the library with every opponent lap.
+        best = self.store.combo_best(lap.context.game, lap.context.track,
+                                     car_class=lap.context.car_class,
+                                     car=lap.context.car)
+        if best is not None and lap.lap_time >= best:
             return
         lap_id = self.store.save_lap(lap, source="opponent", driver=driver,
                                      session_id=self.session_id)
@@ -138,10 +141,12 @@ class Engine:
                 if now >= session_refresh:
                     ctx = adapter.session()
                     session_refresh = now + 5.0
-                    # Track/car change = the next lap belongs to a new session.
+                    # Track/car/session-type change (practice -> quali ->
+                    # race) = the next lap belongs to a new session row.
                     if ctx.track and (
                         ctx.track != self.session.track
                         or ctx.car != self.session.car
+                        or ctx.session_type != self.session.session_type
                     ):
                         self.session_id = None
                     with self._lock:

@@ -115,7 +115,8 @@ class LapStore:
                 row = con.execute(
                     "SELECT MIN(s1) AS s1, MIN(s2) AS s2, MIN(s3) AS s3,"
                     " COUNT(*) AS laps_with_sectors FROM laps"
-                    " WHERE valid=1 AND game=? AND track=? AND car_class=?"
+                    " WHERE valid=1 AND source != 'opponent'"
+                    " AND game=? AND track=? AND car_class=?"
                     " AND s1 IS NOT NULL AND s2 IS NOT NULL AND s3 IS NOT NULL",
                     (game, track, car_class),
                 ).fetchone()
@@ -123,7 +124,8 @@ class LapStore:
                 row = con.execute(
                     "SELECT MIN(s1) AS s1, MIN(s2) AS s2, MIN(s3) AS s3,"
                     " COUNT(*) AS laps_with_sectors FROM laps"
-                    " WHERE valid=1 AND game=? AND track=? AND car=?"
+                    " WHERE valid=1 AND source != 'opponent'"
+                    " AND game=? AND track=? AND car=?"
                     " AND s1 IS NOT NULL AND s2 IS NOT NULL AND s3 IS NOT NULL",
                     (game, track, car),
                 ).fetchone()
@@ -140,14 +142,33 @@ class LapStore:
         }
 
     def list_sessions(self) -> list[dict]:
+        """Session list; lap counts and bests are the player's own laps —
+        captured opponent laps live in the session but don't inflate it."""
         with self._conn() as con:
             rows = con.execute(
                 "SELECT s.*, COUNT(l.id) AS laps, COALESCE(SUM(l.valid), 0) AS valid_laps,"
                 " MIN(CASE WHEN l.valid=1 THEN l.lap_time END) AS best_lap"
                 " FROM sessions s LEFT JOIN laps l ON l.session_id = s.id"
+                "   AND l.source != 'opponent'"
                 " GROUP BY s.id HAVING COUNT(l.id) > 0 ORDER BY s.id DESC"
             ).fetchall()
         return [dict(r) for r in rows]
+
+    def combo_best(self, game: str, track: str, car_class: str = "",
+                   car: str = "") -> Optional[float]:
+        """Fastest valid lap time for a combo across ALL sources."""
+        with self._conn() as con:
+            if car_class:
+                row = con.execute(
+                    "SELECT MIN(lap_time) AS t FROM laps WHERE valid=1"
+                    " AND game=? AND track=? AND car_class=?",
+                    (game, track, car_class)).fetchone()
+            else:
+                row = con.execute(
+                    "SELECT MIN(lap_time) AS t FROM laps WHERE valid=1"
+                    " AND game=? AND track=? AND car=?",
+                    (game, track, car)).fetchone()
+        return row["t"] if row and row["t"] is not None else None
 
     def _conn(self) -> sqlite3.Connection:
         con = sqlite3.connect(self.db_path)
@@ -231,13 +252,15 @@ class LapStore:
             if car_class:
                 row = con.execute(
                     "SELECT * FROM laps WHERE game=? AND track=? AND car_class=?"
-                    " AND valid=1 ORDER BY lap_time ASC LIMIT 1",
+                    " AND valid=1 AND source != 'opponent'"
+                    " ORDER BY lap_time ASC LIMIT 1",
                     (game, track, car_class),
                 ).fetchone()
             else:
                 row = con.execute(
                     "SELECT * FROM laps WHERE game=? AND track=? AND car=?"
-                    " AND valid=1 ORDER BY lap_time ASC LIMIT 1",
+                    " AND valid=1 AND source != 'opponent'"
+                    " ORDER BY lap_time ASC LIMIT 1",
                     (game, track, car),
                 ).fetchone()
         return dict(row) if row else None
@@ -247,8 +270,10 @@ class LapStore:
         class is blank."""
         with self._conn() as con:
             rows = con.execute(
-                "SELECT id FROM laps l WHERE valid=1 AND lap_time = ("
+                "SELECT id FROM laps l WHERE valid=1 AND source != 'opponent'"
+                " AND lap_time = ("
                 " SELECT MIN(lap_time) FROM laps WHERE valid=1"
+                " AND source != 'opponent'"
                 " AND game=l.game AND track=l.track"
                 " AND ((l.car_class != '' AND car_class = l.car_class)"
                 "   OR (l.car_class = '' AND car = l.car)))"

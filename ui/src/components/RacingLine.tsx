@@ -131,12 +131,11 @@ export default function RacingLine({ cmp, insights, solo = false }: Props) {
     const PZ = (v: number) => (oz + (maxZ - v) * fit) * k + ty;
     const pxPerM = fit * k;
 
-    // track corridor: stroke the real centerline (reconstructed from the
-    // car's recorded lateral offset) at track width, so driven lines
-    // visibly move across the road toward the limits. Older laps without
-    // centerline data fall back to the reference line at ~11 m.
-    const cxArr = cmp.map.center_x ?? x;
-    const czArr = cmp.map.center_z ?? z;
+    // track corridor: a width guide stroked along the reference line (the
+    // sims don't expose surveyed track edges, so the reference sits centered
+    // by construction — read the A line's movement relative to R).
+    const cxArr = x;
+    const czArr = z;
     const widths = cmp.map.width;
     ctx.lineJoin = "round";
     ctx.lineCap = "round";

@@ -201,7 +201,14 @@ export default function App() {
             sessionFilter={sessionFilter}
             combo={combo || "all"}
             combos={combos}
-            onCombo={setCombo}
+            onCombo={(key) => {
+              // switching combos clears the old comparison so a data-less
+              // combo never shows another combo's charts
+              setCombo(key);
+              setYouId(null);
+              setRefId(null);
+              autoPicked.current = false;
+            }}
             onPick={onPick}
             onDelete={onDelete}
             onClearFilter={() => setSessionFilter(null)}

@@ -109,7 +109,7 @@ export default function LapList({
                   </button>
                 </span>
               </div>
-              <div className="lap-row-sectors">
+              <div className="lap-row-sectors" title={lap.car}>
                 {lap.s1 != null && lap.s2 != null && lap.s3 != null ? (
                   <>
                     <span className={sectorCls(!!lap.valid, lap.s1, best.s1)}>{lap.s1.toFixed(2)}</span>
@@ -121,6 +121,7 @@ export default function LapList({
                 ) : (
                   "no sector data"
                 )}
+                <span className="lap-car"> · {lap.car.length > 26 ? lap.car.slice(0, 24) + "…" : lap.car}</span>
               </div>
             </div>
           );

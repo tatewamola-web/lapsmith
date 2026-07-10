@@ -40,8 +40,10 @@ export interface ComparePayload {
     you_x?: number[];
     you_z?: number[];
     width?: number[];
-    center_x?: number[];
-    center_z?: number[];
+    el_x?: number[]; // empirical track edges (from all laps ever driven)
+    el_z?: number[];
+    er_x?: number[];
+    er_z?: number[];
   };
   lap_meta: LapMeta;
   ref_meta: LapMeta;

@@ -49,6 +49,8 @@ class Engine:
         # faster drivers, full telemetry included.
         self._opponents: dict[int, LapRecorder] = {}
         self._opponent_meta: dict[int, tuple[str, str]] = {}  # id -> (driver, car)
+        # per session: the best opponent's lap so far (lap_id, time, permanent)
+        self._session_best_opp: dict = {}
         self._lock = threading.Lock()
         self._stop = threading.Event()
         self._thread: Optional[threading.Thread] = None
@@ -108,18 +110,27 @@ class Engine:
     def _on_opponent_lap(self, lap, driver: str):
         if not lap.valid:
             return
-        # Keep a lap only if it beats everything already in the library for
-        # this combo — yours AND previously kept opponent laps. Without the
-        # "everything" part, a fresh track/class combo (no PB yet) floods
-        # the library with every opponent lap.
+        # Two reasons to keep an opponent lap:
+        #  1) it beats everything in the library for this combo (permanent
+        #     reference), or
+        #  2) it's the best opponent lap of THIS session — the fastest
+        #     driver you actually raced against. Each session keeps exactly
+        #     one of these; a faster one replaces it.
         best = self.store.combo_best(lap.context.game, lap.context.track,
                                      car_class=lap.context.car_class,
                                      car=lap.context.car)
-        if best is not None and lap.lap_time >= best:
+        permanent = best is None or lap.lap_time < best
+        sb = self._session_best_opp.get(self.session_id)
+        if not permanent and sb is not None and lap.lap_time >= sb[1]:
             return
         lap_id = self.store.save_lap(lap, source="opponent", driver=driver,
                                      session_id=self.session_id)
-        logger.info("opponent lap kept: %s %.3f (id=%d)", driver, lap.lap_time, lap_id)
+        if sb is None or lap.lap_time < sb[1]:
+            if sb is not None and not sb[2]:
+                self.store.delete_lap(sb[0])  # superseded session-best
+            self._session_best_opp[self.session_id] = (lap_id, lap.lap_time, permanent)
+        logger.info("opponent lap kept: %s %.3f (id=%d, permanent=%s)",
+                    driver, lap.lap_time, lap_id, permanent)
 
     def _run(self):
         adapter = get_adapter(self.adapter_name)
@@ -268,7 +279,17 @@ def create_app(adapter_name: str = "sim", data_dir: Path = Path("data")) -> Fast
         b = engine.store.load_channels(ref)
         if a is None or b is None:
             return Response(status_code=404)
-        payload = analysis.compare(a, b)
+        # every lap ever driven on this track sharpens the empirical edges
+        ref_meta = engine.store.get_lap(ref)
+        extra = []
+        if ref_meta:
+            for m in engine.store.list_laps(track=ref_meta["track"]):
+                if m["id"] in (lap, ref) or not m["has_data"] or len(extra) >= 20:
+                    continue
+                ch = engine.store.load_channels(m["id"])
+                if ch is not None and "pos_x" in ch:
+                    extra.append(ch)
+        payload = analysis.compare(a, b, extra_laps=extra)
         if payload is None:
             return Response(status_code=422)
         payload["lap_meta"] = engine.store.get_lap(lap)

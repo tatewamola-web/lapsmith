@@ -19,7 +19,7 @@ interface Props {
 }
 
 function officialLabel(name: string, n: number): string {
-  return name ? name.split(" ")[0] : `C${n}`;
+  return name ? name.split(" ")[0] : `T${n}`;
 }
 
 /** distance (m) a lap had covered at time t, from its lap_time-over-dist curve */
@@ -40,6 +40,7 @@ function distAt(t: number, times: number[], dist: number[]): number {
 export default function RacingLine({ cmp, insights, solo = false }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [cornerN, setCornerN] = useState<number | null>(null);
+  const [follow, setFollow] = useState(false); // chase-cam during playback
   // user pan/zoom on top of the fitted view
   const view = useRef({ k: 1, tx: 0, ty: 0 });
   const dragging = useRef<{ x: number; y: number } | null>(null);
@@ -120,35 +121,77 @@ export default function RacingLine({ cmp, insights, solo = false }: Props) {
       maxZ = Math.max(maxZ, z[i], you_z[i]);
     }
     const pad = 26;
-    const fit = Math.min(
+    let fit = Math.min(
       (cssW - pad * 2) / Math.max(maxX - minX, 1),
       (cssH - pad * 2) / Math.max(maxZ - minZ, 1)
     );
-    const ox = (cssW - (maxX - minX) * fit) / 2;
-    const oz = (cssH - (maxZ - minZ) * fit) / 2;
+    let ox = (cssW - (maxX - minX) * fit) / 2;
+    let oz = (cssH - (maxZ - minZ) * fit) / 2;
+
+    // world position of a car at the playback clock
+    const step2 = step;
+    const carWorld = (xs: number[], zs: number[], times: number[]) => {
+      const d = distAt(clock, times, cmp.dist);
+      const fi = Math.min(d / step2, xs.length - 1.001);
+      const i = Math.floor(fi);
+      const f = fi - i;
+      return [xs[i] + (xs[i + 1] - xs[i]) * f, zs[i] + (zs[i + 1] - zs[i]) * f];
+    };
+
+    // follow cam: fixed ~170 m frame centered between the two cars
+    const followActive = follow && clock > 0;
+    if (followActive) {
+      const [ax, az] = carWorld(you_x, you_z, tA);
+      const [bx, bz] = solo ? [ax, az] : carWorld(x, z, tB);
+      fit = Math.min(cssW, cssH) / 170;
+      ox = cssW / 2 - ((ax + bx) / 2 - minX) * fit;
+      oz = cssH / 2 - (maxZ - (az + bz) / 2) * fit;
+    }
+
     const { k, tx, ty } = view.current;
     const PX = (v: number) => (ox + (v - minX) * fit) * k + tx;
     const PZ = (v: number) => (oz + (maxZ - v) * fit) * k + ty;
     const pxPerM = fit * k;
+    if (followActive) {
+      i0 = 0;
+      i1 = x.length - 1; // draw the whole lap; the camera does the cropping
+    }
 
-    // track corridor: a width guide stroked along the reference line (the
-    // sims don't expose surveyed track edges, so the reference sits centered
-    // by construction — read the A line's movement relative to R).
-    const cxArr = x;
-    const czArr = z;
-    const widths = cmp.map.width;
+    // track corridor. Preferred: empirical edges traced from every lap ever
+    // driven here (union of legal road actually used). Fallback for sparse
+    // tracks: a width band stroked along the reference line.
     ctx.lineJoin = "round";
     ctx.lineCap = "round";
-    ctx.strokeStyle = "rgba(139, 148, 158, 0.16)";
-    const chunk = 40;
-    for (let s = i0; s < i1; s += chunk) {
-      const e = Math.min(s + chunk, i1);
-      const w = widths ? widths[Math.min(s + chunk / 2, widths.length - 1)] : 11;
-      ctx.lineWidth = Math.max(w * pxPerM, 3);
+    const { el_x, el_z, er_x, er_z } = cmp.map;
+    if (el_x && el_z && er_x && er_z) {
+      ctx.fillStyle = "rgba(139, 148, 158, 0.13)";
       ctx.beginPath();
-      ctx.moveTo(PX(cxArr[s]), PZ(czArr[s]));
-      for (let i = s + 1; i <= e; i++) ctx.lineTo(PX(cxArr[i]), PZ(czArr[i]));
-      ctx.stroke();
+      ctx.moveTo(PX(el_x[i0]), PZ(el_z[i0]));
+      for (let i = i0 + 1; i <= i1; i++) ctx.lineTo(PX(el_x[i]), PZ(el_z[i]));
+      for (let i = i1; i >= i0; i--) ctx.lineTo(PX(er_x[i]), PZ(er_z[i]));
+      ctx.closePath();
+      ctx.fill();
+      ctx.strokeStyle = "rgba(139, 148, 158, 0.35)";
+      ctx.lineWidth = 1;
+      for (const [ex, ez] of [[el_x, el_z], [er_x, er_z]] as const) {
+        ctx.beginPath();
+        ctx.moveTo(PX(ex[i0]), PZ(ez[i0]));
+        for (let i = i0 + 1; i <= i1; i++) ctx.lineTo(PX(ex[i]), PZ(ez[i]));
+        ctx.stroke();
+      }
+    } else {
+      const widths = cmp.map.width;
+      ctx.strokeStyle = "rgba(139, 148, 158, 0.16)";
+      const chunk = 40;
+      for (let s = i0; s < i1; s += chunk) {
+        const e = Math.min(s + chunk, i1);
+        const w = widths ? widths[Math.min(s + chunk / 2, widths.length - 1)] : 11;
+        ctx.lineWidth = Math.max(w * pxPerM, 3);
+        ctx.beginPath();
+        ctx.moveTo(PX(x[s]), PZ(z[s]));
+        for (let i = s + 1; i <= e; i++) ctx.lineTo(PX(x[i]), PZ(z[i]));
+        ctx.stroke();
+      }
     }
 
     const line = (xs: number[], zs: number[], color: string, width: number) => {
@@ -273,6 +316,9 @@ export default function RacingLine({ cmp, insights, solo = false }: Props) {
           setPlaying(!playing);
         }}>
           {playing ? "❚❚" : "▶"}
+        </button>
+        <button className={`toggle ${follow ? "on" : ""}`} onClick={() => setFollow(!follow)} title="Chase cam: camera tracks the cars during playback">
+          FOLLOW
         </button>
         <select className="rate-select" value={rate} onChange={(e) => setRate(Number(e.target.value))}>
           <option value={0.5}>0.5×</option>

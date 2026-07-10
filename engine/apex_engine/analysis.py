@@ -50,8 +50,11 @@ def resample_lap(channels: dict[str, np.ndarray], grid: np.ndarray) -> dict[str,
     return out
 
 
-def compare(lap: dict[str, np.ndarray], ref: dict[str, np.ndarray]) -> Optional[dict]:
-    """Build the full comparison payload for two laps' channel dicts."""
+def compare(lap: dict[str, np.ndarray], ref: dict[str, np.ndarray],
+            extra_laps: list = ()) -> Optional[dict]:
+    """Build the full comparison payload for two laps' channel dicts.
+    extra_laps: more laps from the same track, used to trace empirical
+    track edges from everything ever driven there."""
     if "lap_dist" not in lap or "lap_dist" not in ref:
         return None
     max_d = float(min(lap["lap_dist"].max(), ref["lap_dist"].max()))
@@ -96,11 +99,32 @@ def compare(lap: dict[str, np.ndarray], ref: dict[str, np.ndarray]) -> Optional[
         width = np.clip(np.abs(b["track_edge"]) * 2.0, 6.0, 30.0)
         result["map"]["width"] = round3(_smooth(width, 15))
 
-    # Centerline reconstruction from mPathLateral was tried and reverted:
-    # the sign is undocumented and flips unpredictably, putting the corridor
-    # off the road entirely. Until a sim exposes surveyed track edges, the
-    # corridor follows the reference driven line — a width guide, not ground
-    # truth. (The lateral channel is still recorded for future use.)
+    # Empirical track edges: every valid lap ever driven on this track is a
+    # sample of legal road. Project each lap's position onto the reference
+    # line's normals; the min/max lateral offsets (plus half a car width)
+    # trace the road actually used. More laps -> better edges.
+    if extra_laps:
+        sx, sz = _smooth(b["pos_x"], 9), _smooth(b["pos_z"], 9)
+        tx, tz = np.gradient(sx), np.gradient(sz)
+        norm = np.hypot(tx, tz) + 1e-9
+        nx, nz = -tz / norm, tx / norm
+        lo = np.zeros(len(grid))
+        hi = np.zeros(len(grid))
+        for ch in [lap, ref] + list(extra_laps):
+            try:
+                r = resample_lap(ch, grid)
+            except (KeyError, ValueError):
+                continue
+            off = (r["pos_x"] - sx) * nx + (r["pos_z"] - sz) * nz
+            lo = np.minimum(lo, off)
+            hi = np.maximum(hi, off)
+        margin = 1.2  # half a car width beyond the driven centerline
+        lo = _smooth(np.clip(lo - margin, -18, 0), 15)
+        hi = _smooth(np.clip(hi + margin, 0, 18), 15)
+        result["map"]["el_x"] = round3(sx + nx * lo)
+        result["map"]["el_z"] = round3(sz + nz * lo)
+        result["map"]["er_x"] = round3(sx + nx * hi)
+        result["map"]["er_z"] = round3(sz + nz * hi)
     return result
 
 

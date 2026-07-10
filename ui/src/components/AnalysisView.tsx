@@ -8,10 +8,9 @@ import RacingLine from "./RacingLine";
 import TrackMap from "./TrackMap";
 import { ChartMarkers, DeltaChart, PedalChart, SpeedChart, SteeringChart } from "./Charts";
 
-/** "T4-5 Variante della Roggia" -> "T4-5". Unnamed corners get C-numbers
- * so they can't be mistaken for official turn numbers. */
+/** "T4-5 Variante della Roggia" -> "T4-5"; unnamed corners count as turns. */
 export function officialLabel(name: string, n: number): string {
-  return name ? name.split(" ")[0] : `C${n}`;
+  return name ? name.split(" ")[0] : `T${n}`;
 }
 
 interface Props {

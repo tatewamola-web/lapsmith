@@ -335,6 +335,15 @@ def create_app(adapter_name: str = "sim", data_dir: Path = Path("data")) -> Fast
         lap_id = engine.store.import_lap(await file.read())
         return {"id": lap_id}
 
+    # HTML must never be cached: asset bundles are content-hashed, but the
+    # .html entry points are not — a cached one pins an old build forever.
+    @app.middleware("http")
+    async def _no_html_cache(request, call_next):
+        response = await call_next(request)
+        if "text/html" in (response.headers.get("content-type") or ""):
+            response.headers["Cache-Control"] = "no-cache"
+        return response
+
     # Serve the built UI (ui/dist) when present, so the whole app runs as
     # one process at http://localhost:8000 with no dev tooling.
     dist = Path(__file__).resolve().parents[2] / "ui" / "dist"

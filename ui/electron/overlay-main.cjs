@@ -35,7 +35,11 @@ app.whenReady().then(() => {
     minHeight: 120,
   });
   win.setAlwaysOnTop(true, "screen-saver"); // above borderless-windowed games
-  win.loadURL("http://localhost:8000/overlay.html");
+  // Electron's heuristic cache can pin an old overlay build — always start fresh.
+  win.webContents.session.clearCache().then(() => {
+    win.loadURL("http://localhost:8000/overlay.html");
+  });
+  globalShortcut.register("Control+Alt+R", () => win.webContents.reloadIgnoringCache());
 
   const saveBounds = () => {
     try {

@@ -112,27 +112,17 @@ class Engine:
     def _on_opponent_lap(self, lap, driver: str):
         if not lap.valid:
             return
-        # Two reasons to keep an opponent lap:
-        #  1) it beats everything in the library for this combo (permanent
-        #     reference), or
-        #  2) it's the best opponent lap of THIS session — the fastest
-        #     driver you actually raced against. Each session keeps exactly
-        #     one of these; a faster one replaces it.
-        best = self.store.combo_best(lap.context.game, lap.context.track,
-                                     car_class=lap.context.car_class,
-                                     car=lap.context.car)
-        permanent = best is None or lap.lap_time < best
-        sb = self._session_best_opp.get(self.session_id)
-        if not permanent and sb is not None and lap.lap_time >= sb[1]:
-            return
+        # Save, then enforce the invariant in SQL: fastest opponent lap per
+        # session + fastest overall per combo survive, everything else goes.
+        # (In-memory replacement logic had ordering bugs with online fields
+        # of a dozen improving drivers — the database prune cannot.)
         lap_id = self.store.save_lap(lap, source="opponent", driver=driver,
                                      session_id=self.session_id)
-        if sb is None or lap.lap_time < sb[1]:
-            if sb is not None and not sb[2]:
-                self.store.delete_lap(sb[0])  # superseded session-best
-            self._session_best_opp[self.session_id] = (lap_id, lap.lap_time, permanent)
-        logger.info("opponent lap kept: %s %.3f (id=%d, permanent=%s)",
-                    driver, lap.lap_time, lap_id, permanent)
+        pruned = self.store.prune_opponents(
+            lap.context.game, lap.context.track,
+            car_class=lap.context.car_class, car=lap.context.car)
+        logger.info("opponent lap: %s %.3f (id=%d, pruned %d)",
+                    driver, lap.lap_time, lap_id, pruned)
 
     def _run(self):
         adapter = get_adapter(self.adapter_name)

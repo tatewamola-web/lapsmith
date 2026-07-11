@@ -50,18 +50,22 @@ html, body, #root { margin: 0; height: 100%; background: transparent; overflow: 
 .ovl-menu label { display: flex; gap: 4px; align-items: center; cursor: pointer; }
 .ovl-hint { color: #58626e; font-size: 8.5px; margin-left: auto; }
 
-.ovl-row.pedals {
+.ovl-trace { padding: 4px 8px 0; }
+
+.ovl-mid {
   flex: 1;
   display: flex;
-  gap: 14px;
-  align-items: stretch;
-  padding: 8px 12px;
+  gap: 16px;
+  align-items: center;
+  padding: 6px 12px;
   min-height: 0;
 }
-.pcol { display: flex; flex-direction: column; align-items: center; gap: 3px; }
-.pcol.ghost { opacity: 0.65; }
-.plabel { font-size: 8px; letter-spacing: 0.2em; color: #8b949e; }
-.pbars { display: flex; gap: 5px; flex: 1; align-items: flex-end; min-height: 0; }
+.gear-ring { display: flex; align-items: center; gap: 8px; margin-left: auto; }
+.gear-ring text { font-family: "JetBrains Mono", monospace; }
+.gear-speed { font-size: 15px; font-weight: 700; }
+.gear-speed span { font-size: 9px; color: #8b949e; font-weight: 400; }
+
+.pbars { display: flex; gap: 5px; align-self: stretch; align-items: flex-end; min-height: 56px; }
 .pbar {
   width: 16px;
   height: 100%;

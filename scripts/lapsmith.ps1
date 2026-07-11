@@ -16,9 +16,23 @@ try {
 } catch {}
 
 if (-not $up) {
-    Start-Process -FilePath $python `
-        -ArgumentList "-m", "apex_engine", "--adapter", $Adapter `
-        -WorkingDirectory $root -WindowStyle Minimized
+    # Windows App Control sometimes blocks the venv's python.exe copy;
+    # fall back to the base interpreter with the venv's packages on path.
+    $base = Get-ChildItem "$env:APPDATA\uv\python\cpython-3.12*\python.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
+    try {
+        Start-Process -FilePath $python `
+            -ArgumentList "-m", "apex_engine", "--adapter", $Adapter `
+            -WorkingDirectory $root -WindowStyle Minimized -ErrorAction Stop
+    } catch {
+        if ($base) {
+            $env:PYTHONPATH = "$root\engine;$root\engine\.venv\Lib\site-packages"
+            Start-Process -FilePath $base.FullName `
+                -ArgumentList "-m", "apex_engine", "--adapter", $Adapter `
+                -WorkingDirectory $root -WindowStyle Minimized
+        } else {
+            Write-Host "Could not start the engine: $_"
+        }
+    }
     Start-Sleep -Seconds 3
 }
 

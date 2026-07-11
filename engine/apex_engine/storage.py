@@ -120,6 +120,39 @@ class LapStore:
             return None
         return row["id"] if age < max_age_s else None
 
+    def prune_opponents(self, game: str, track: str, car_class: str = "",
+                        car: str = "") -> int:
+        """Self-healing invariant: for a combo, keep only the fastest valid
+        opponent lap per session plus the fastest overall. Idempotent, so
+        ordering/threading bugs upstream can't cause a lap flood."""
+        cls_where = ("car_class=?" if car_class else "car=?")
+        cls_val = car_class or car
+        with self._conn() as con:
+            keep = {r["id"] for r in con.execute(
+                f"SELECT id FROM laps l WHERE source='opponent' AND valid=1"
+                f" AND game=? AND track=? AND {cls_where}"
+                f" AND id = (SELECT id FROM laps WHERE source='opponent'"
+                f"  AND valid=1 AND game=l.game AND track=l.track"
+                f"  AND session_id IS l.session_id AND {cls_where}"
+                f"  ORDER BY lap_time ASC, id ASC LIMIT 1)",
+                (game, track, cls_val, cls_val))}
+            best = con.execute(
+                f"SELECT id FROM laps WHERE source='opponent' AND valid=1"
+                f" AND game=? AND track=? AND {cls_where}"
+                f" ORDER BY lap_time ASC, id ASC LIMIT 1",
+                (game, track, cls_val)).fetchone()
+            if best:
+                keep.add(best["id"])
+            doomed = [r["id"] for r in con.execute(
+                f"SELECT id FROM laps WHERE source='opponent'"
+                f" AND game=? AND track=? AND {cls_where}",
+                (game, track, cls_val)) if r["id"] not in keep]
+            for lap_id in doomed:
+                con.execute("DELETE FROM laps WHERE id=?", (lap_id,))
+        for lap_id in doomed:
+            (self.laps_dir / f"{lap_id}.npz").unlink(missing_ok=True)
+        return len(doomed)
+
     def existing_import_keys(self) -> set:
         with self._conn() as con:
             rows = con.execute(

@@ -1,83 +1,182 @@
-// In-game overlay: your live pedal inputs next to what your PB lap did at
-// this exact point of the track — "the ideal inputs" ghosting your own.
-// Widgets are toggleable (gear menu), the window is moved by dragging the
-// grip bar and resized from its edges (Electron frameless window).
+// In-game overlay v2.
+// - Trace: a rolling window of the track ahead/behind showing the reference
+//   lap's throttle/brake curves (dim) with your actual inputs drawn over
+//   them (bright) up to the car's position. The reference is the fastest
+//   lap in the library for this track+class — yours or a captured rival's.
+// - Inputs: your live pedal bars only.
+// - Gear: big digit with the revs wrapping around it as a ring, speed below.
 
 import { useEffect, useRef, useState } from "react";
-import type { LapChannels, LiveFrame } from "../api";
-import { fmtTime, getLapData, getPB, getStatus, openLive } from "../api";
+import type { LapChannels, LapMeta, LiveFrame } from "../api";
+import { fmtTime, getLapData, getLaps, getStatus, openLive } from "../api";
 
 interface Toggles {
-  pedals: boolean;
-  speed: boolean;
+  trace: boolean;
+  inputs: boolean;
+  gear: boolean;
   times: boolean;
 }
 
-const DEFAULT_TOGGLES: Toggles = { pedals: true, speed: true, times: true };
+const DEFAULT_TOGGLES: Toggles = { trace: true, inputs: true, gear: true, times: true };
+const TRAIL = 900; // ~36s of frames for the live trace
 
 export default function Overlay() {
   const [frame, setFrame] = useState<LiveFrame | null>(null);
-  const [pbLap, setPbLap] = useState<LapChannels | null>(null);
-  const [pbTime, setPbTime] = useState<number | null>(null);
+  const [refLap, setRefLap] = useState<LapChannels | null>(null);
+  const [refMeta, setRefMeta] = useState<LapMeta | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [toggles, setToggles] = useState<Toggles>(() => {
     try {
-      return { ...DEFAULT_TOGGLES, ...JSON.parse(localStorage.getItem("overlay-toggles") || "{}") };
+      return { ...DEFAULT_TOGGLES, ...JSON.parse(localStorage.getItem("overlay-toggles-v2") || "{}") };
     } catch {
       return DEFAULT_TOGGLES;
     }
   });
   const comboKey = useRef("");
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  // my recent inputs by distance, cleared each new lap
+  const trail = useRef<{ d: number; thr: number; brk: number }[]>([]);
+  const lastLapNo = useRef(-1);
+  const maxRpm = useRef(8000);
 
   useEffect(() => openLive(setFrame), []);
 
-  // fetch the PB lap (the "ideal" inputs) whenever track/class changes
+  // reference = fastest lap with telemetry for this track+class, any driver
   useEffect(() => {
-    const h = setInterval(async () => {
+    const pick = async () => {
       try {
         const s = await getStatus();
         const sess = s.session;
         if (!sess?.track) return;
         const key = `${sess.game}|${sess.track}|${sess.car_class || sess.car}`;
         if (key === comboKey.current) return;
-        comboKey.current = key;
-        const pb = await getPB(sess.game, sess.track, sess.car, sess.car_class || "");
-        if (pb && pb.has_data !== false) {
-          setPbTime(pb.lap_time);
-          setPbLap((await getLapData(pb.id)) as LapChannels);
-        } else {
-          setPbTime(pb?.lap_time ?? null);
-          setPbLap(null);
+        const laps = await getLaps();
+        const candidates = laps.filter(
+          (l) =>
+            l.track === sess.track &&
+            (sess.car_class ? l.car_class === sess.car_class : l.car === sess.car) &&
+            l.valid &&
+            l.has_data !== false
+        );
+        if (!candidates.length) {
+          comboKey.current = key;
+          setRefLap(null);
+          setRefMeta(null);
+          return;
         }
+        const best = candidates.reduce((a, b) => (a.lap_time <= b.lap_time ? a : b));
+        comboKey.current = key;
+        setRefMeta(best);
+        setRefLap((await getLapData(best.id)) as LapChannels);
       } catch {
-        /* engine offline; retry next tick */
+        /* engine offline; retry */
       }
-    }, 5000);
+    };
+    pick();
+    const h = setInterval(pick, 7000);
     return () => clearInterval(h);
   }, []);
 
+  // accumulate my inputs; reset on new lap
+  useEffect(() => {
+    if (!frame) return;
+    if (frame.lap_number !== lastLapNo.current) {
+      lastLapNo.current = frame.lap_number;
+      trail.current = [];
+    }
+    trail.current.push({ d: frame.lap_dist, thr: frame.throttle, brk: frame.brake });
+    if (trail.current.length > TRAIL) trail.current.shift();
+    if (frame.rpm > maxRpm.current) maxRpm.current = frame.rpm;
+  }, [frame]);
+
+  // trace canvas
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas || !toggles.trace) return;
+    const dpr = window.devicePixelRatio || 1;
+    const w = canvas.clientWidth;
+    const h = canvas.clientHeight || 84;
+    if (canvas.width !== w * dpr) canvas.width = w * dpr;
+    if (canvas.height !== h * dpr) canvas.height = h * dpr;
+    const ctx = canvas.getContext("2d")!;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, w, h);
+    if (!frame) return;
+
+    const back = 240; // meters behind the car
+    const ahead = 160; // meters ahead
+    const d0 = frame.lap_dist - back;
+    const d1 = frame.lap_dist + ahead;
+    const X = (d: number) => ((d - d0) / (d1 - d0)) * w;
+    const Y = (v: number) => h - 3 - v * (h - 8);
+
+    // reference curves for the window (dim)
+    if (refLap) {
+      const step = refLap.lap_dist.length > 1 ? refLap.lap_dist[1] - refLap.lap_dist[0] : 4;
+      const iA = Math.max(Math.floor(d0 / step), 0);
+      const iB = Math.min(Math.ceil(d1 / step), refLap.lap_dist.length - 1);
+      const drawRef = (arr: number[], color: string) => {
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 1.4;
+        ctx.beginPath();
+        for (let i = iA; i <= iB; i++) {
+          const px = X(i * step);
+          i === iA ? ctx.moveTo(px, Y(arr[i])) : ctx.lineTo(px, Y(arr[i]));
+        }
+        ctx.stroke();
+      };
+      drawRef(refLap.throttle, "rgba(63,185,80,0.38)");
+      drawRef(refLap.brake, "rgba(248,81,73,0.42)");
+    }
+
+    // my actual inputs up to the car (bright)
+    const t = trail.current;
+    const drawMine = (getV: (p: { thr: number; brk: number }) => number, color: string) => {
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      let started = false;
+      for (const p of t) {
+        if (p.d < d0 || p.d > frame.lap_dist) continue;
+        const px = X(p.d);
+        started ? ctx.lineTo(px, Y(getV(p))) : ctx.moveTo(px, Y(getV(p)));
+        started = true;
+      }
+      ctx.stroke();
+    };
+    drawMine((p) => p.thr, "#3fb950");
+    drawMine((p) => p.brk, "#f85149");
+
+    // car position line
+    ctx.strokeStyle = "rgba(232,234,237,0.8)";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(X(frame.lap_dist), 2);
+    ctx.lineTo(X(frame.lap_dist), h - 2);
+    ctx.stroke();
+  }, [frame, refLap, toggles.trace]);
+
   const save = (t: Toggles) => {
     setToggles(t);
-    localStorage.setItem("overlay-toggles", JSON.stringify(t));
+    localStorage.setItem("overlay-toggles-v2", JSON.stringify(t));
   };
 
-  // PB ("ideal") inputs at the car's current track position
-  let pbThrottle = 0;
-  let pbBrake = 0;
-  if (pbLap && frame) {
-    const step = pbLap.lap_dist.length > 1 ? pbLap.lap_dist[1] - pbLap.lap_dist[0] : 4;
-    const i = Math.min(Math.max(Math.round(frame.lap_dist / step), 0), pbLap.throttle.length - 1);
-    pbThrottle = pbLap.throttle[i];
-    pbBrake = pbLap.brake[i];
-  }
-
   const gear = frame ? (frame.gear === 0 ? "N" : frame.gear === -1 ? "R" : String(frame.gear)) : "–";
+  const rpmFrac = frame ? Math.min(frame.rpm / maxRpm.current, 1) : 0;
+  const ringColor = rpmFrac > 0.92 ? "#f85149" : rpmFrac > 0.8 ? "#d4a017" : "#4dd0e1";
+  const R = 26;
+  const CIRC = 2 * Math.PI * R;
+  const refLabel = refMeta
+    ? refMeta.driver === "me"
+      ? `PB ${fmtTime(refMeta.lap_time)}`
+      : `${refMeta.driver.split(" ")[0]} ${fmtTime(refMeta.lap_time)}`
+    : "no reference yet";
 
   return (
     <div className="ovl">
       <div className="ovl-grip">
         <span className="ovl-title">LAPSMITH</span>
-        <span className="ovl-sub">{frame ? "" : "waiting for telemetry"}</span>
+        <span className="ovl-sub">{frame ? `vs ${refLabel}` : "waiting for telemetry"}</span>
         <button className="ovl-gear" onClick={() => setMenuOpen(!menuOpen)}>⚙</button>
       </div>
 
@@ -93,40 +192,49 @@ export default function Overlay() {
               {k}
             </label>
           ))}
-          <div className="ovl-hint">Ctrl+Alt+O: click-through · Ctrl+Alt+H: hide</div>
+          <div className="ovl-hint">Ctrl+Alt+O click-through · Ctrl+Alt+H hide</div>
         </div>
       )}
 
-      {toggles.pedals && (
-        <div className="ovl-row pedals">
-          <div className="pcol">
-            <div className="plabel">YOU</div>
-            <div className="pbars">
-              <div className="pbar"><div className="pfill throttle" style={{ height: `${(frame?.throttle ?? 0) * 100}%` }} /></div>
-              <div className="pbar"><div className="pfill brake" style={{ height: `${(frame?.brake ?? 0) * 100}%` }} /></div>
-            </div>
-          </div>
-          <div className="pcol ghost">
-            <div className="plabel">PB</div>
-            <div className="pbars">
-              <div className="pbar"><div className="pfill throttle" style={{ height: `${pbThrottle * 100}%` }} /></div>
-              <div className="pbar"><div className="pfill brake" style={{ height: `${pbBrake * 100}%` }} /></div>
-            </div>
-          </div>
-          {toggles.speed && (
-            <div className="ovl-speed">
-              <div className="big">{frame ? Math.round(frame.speed * 3.6) : "–"}</div>
-              <div className="small">km/h · {gear}</div>
-            </div>
-          )}
+      {toggles.trace && (
+        <div className="ovl-trace">
+          <canvas ref={canvasRef} style={{ width: "100%", height: 84 }} />
         </div>
       )}
+
+      <div className="ovl-mid">
+        {toggles.inputs && (
+          <div className="pbars">
+            <div className="pbar"><div className="pfill throttle" style={{ height: `${(frame?.throttle ?? 0) * 100}%` }} /></div>
+            <div className="pbar"><div className="pfill brake" style={{ height: `${(frame?.brake ?? 0) * 100}%` }} /></div>
+          </div>
+        )}
+        {toggles.gear && (
+          <div className="gear-ring">
+            <svg width="70" height="70" viewBox="0 0 70 70">
+              <circle cx="35" cy="35" r={R} fill="none" stroke="rgba(38,45,54,0.9)" strokeWidth="5" />
+              <circle
+                cx="35" cy="35" r={R} fill="none"
+                stroke={ringColor} strokeWidth="5" strokeLinecap="round"
+                strokeDasharray={`${rpmFrac * CIRC} ${CIRC}`}
+                transform="rotate(-90 35 35)"
+              />
+              <text x="35" y="44" textAnchor="middle" fill="#e8eaed" fontSize="26" fontWeight="700">
+                {gear}
+              </text>
+            </svg>
+            <div className="gear-speed">
+              {frame ? Math.round(frame.speed * 3.6) : "–"} <span>km/h</span>
+            </div>
+          </div>
+        )}
+      </div>
 
       {toggles.times && (
         <div className="ovl-row times">
           <span>LAP {frame ? fmtTime(frame.lap_time) : "–"}</span>
           <span>LAST {frame ? fmtTime(frame.last_lap_time) : "–"}</span>
-          <span className="gold">PB {fmtTime(pbTime)}</span>
+          <span className="gold">BEST {frame ? fmtTime(frame.best_lap_time) : "–"}</span>
         </div>
       )}
     </div>

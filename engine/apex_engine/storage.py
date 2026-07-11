@@ -99,6 +99,27 @@ class LapStore:
             )
             return cur.lastrowid
 
+    def find_recent_session(self, ctx: SessionContext,
+                            max_age_s: float = 3 * 3600) -> Optional[int]:
+        """Most recent live session matching this context, if fresh enough —
+        so an engine restart mid-stint continues the same session instead of
+        fragmenting it."""
+        with self._conn() as con:
+            row = con.execute(
+                "SELECT id, started_at FROM sessions WHERE source='live'"
+                " AND game=? AND track=? AND car=? AND session_type=?"
+                " ORDER BY id DESC LIMIT 1",
+                (ctx.game, ctx.track, ctx.car, ctx.session_type),
+            ).fetchone()
+        if row is None:
+            return None
+        try:
+            started = datetime.fromisoformat(row["started_at"])
+            age = (datetime.now(timezone.utc) - started).total_seconds()
+        except ValueError:
+            return None
+        return row["id"] if age < max_age_s else None
+
     def existing_import_keys(self) -> set:
         with self._conn() as con:
             rows = con.execute(
@@ -271,12 +292,12 @@ class LapStore:
         with self._conn() as con:
             rows = con.execute(
                 "SELECT id FROM laps l WHERE valid=1 AND source != 'opponent'"
-                " AND lap_time = ("
-                " SELECT MIN(lap_time) FROM laps WHERE valid=1"
-                " AND source != 'opponent'"
+                " AND id = ("
+                " SELECT id FROM laps WHERE valid=1 AND source != 'opponent'"
                 " AND game=l.game AND track=l.track"
                 " AND ((l.car_class != '' AND car_class = l.car_class)"
-                "   OR (l.car_class = '' AND car = l.car)))"
+                "   OR (l.car_class = '' AND car = l.car))"
+                " ORDER BY lap_time ASC, id ASC LIMIT 1)"
             ).fetchall()
         return {r["id"] for r in rows}
 

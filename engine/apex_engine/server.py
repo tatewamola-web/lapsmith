@@ -67,10 +67,12 @@ class Engine:
             return self.latest, self.session, self.connected
 
     def _on_lap(self, lap):
-        # Session rows are created lazily on the first stored lap, so idle
-        # engine restarts don't litter the library with empty sessions.
+        # Session rows are created lazily on the first stored lap. An engine
+        # restart mid-stint re-attaches to the recent matching session
+        # instead of fragmenting one stint into several rows.
         if self.session_id is None:
-            self.session_id = self.store.start_session(lap.context)
+            self.session_id = (self.store.find_recent_session(lap.context)
+                               or self.store.start_session(lap.context))
             logger.info("session #%d: %s / %s", self.session_id,
                         lap.context.track, lap.context.car)
         # Store every completed lap, even invalid ones (flagged, filtered in UI).
@@ -284,7 +286,9 @@ def create_app(adapter_name: str = "sim", data_dir: Path = Path("data")) -> Fast
         extra = []
         if ref_meta:
             for m in engine.store.list_laps(track=ref_meta["track"]):
-                if m["id"] in (lap, ref) or not m["has_data"] or len(extra) >= 20:
+                # only VALID laps sample legal road — invalid ones include
+                # off-track excursions that would spike the edges
+                if m["id"] in (lap, ref) or not m["valid"] or not m["has_data"] or len(extra) >= 20:
                     continue
                 ch = engine.store.load_channels(m["id"])
                 if ch is not None and "pos_x" in ch:

@@ -119,8 +119,9 @@ def compare(lap: dict[str, np.ndarray], ref: dict[str, np.ndarray],
             lo = np.minimum(lo, off)
             hi = np.maximum(hi, off)
         margin = 1.2  # half a car width beyond the driven centerline
-        lo = _smooth(np.clip(lo - margin, -18, 0), 15)
-        hi = _smooth(np.clip(hi + margin, 0, 18), 15)
+        # generous smoothing: one lap's odd line shouldn't dent the road
+        lo = _smooth(np.clip(lo - margin, -18, 0), 31)
+        hi = _smooth(np.clip(hi + margin, 0, 18), 31)
         result["map"]["el_x"] = round3(sx + nx * lo)
         result["map"]["el_z"] = round3(sz + nz * lo)
         result["map"]["er_x"] = round3(sx + nx * hi)

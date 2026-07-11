@@ -174,6 +174,9 @@ export async function getIdeal(game: string, track: string, car: string, carClas
   return r.ok ? r.json() : null;
 }
 
+/** m/s -> mph */
+export const MPH = 2.23694;
+
 export function fmtDate(iso: string): string {
   const d = new Date(iso);
   return d.toLocaleString(undefined, {

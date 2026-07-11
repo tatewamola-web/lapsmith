@@ -13,6 +13,11 @@ const path = require("path");
 const statePath = path.join(app.getPath("userData"), "overlay-state.json");
 let clickThrough = false;
 
+// one overlay at a time — a second launch focuses the existing window
+if (!app.requestSingleInstanceLock()) {
+  app.quit();
+}
+
 function loadState() {
   try {
     return JSON.parse(fs.readFileSync(statePath, "utf-8"));
@@ -31,8 +36,8 @@ app.whenReady().then(() => {
     resizable: true,
     skipTaskbar: true,
     hasShadow: false,
-    minWidth: 220,
-    minHeight: 120,
+    minWidth: 330,
+    minHeight: 96,
   });
   win.setAlwaysOnTop(true, "screen-saver"); // above borderless-windowed games
   // Electron's heuristic cache can pin an old overlay build — always start fresh.

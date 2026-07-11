@@ -331,7 +331,7 @@ def insights(lap: dict[str, np.ndarray], ref: dict[str, np.ndarray],
             elif bp_you > 0 and bp_ref > 0 and bp_you - bp_ref > 12:
                 advice.append(f"braking {bp_you - bp_ref:.0f}m later — likely overshooting")
             if apex_kmh_you < apex_kmh_ref - 3:
-                advice.append(f"carrying {apex_kmh_ref - apex_kmh_you:.0f} km/h less at the apex")
+                advice.append(f"carrying {(apex_kmh_ref - apex_kmh_you) * 0.621371:.0f} mph less at the apex")
             if to_you > 0 and to_ref > 0 and to_you - to_ref > 12:
                 advice.append(f"back to full throttle {to_you - to_ref:.0f}m later")
             if not advice:

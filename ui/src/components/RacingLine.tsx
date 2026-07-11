@@ -339,12 +339,12 @@ export default function RacingLine({ cmp, insights, solo = false }: Props) {
 
       <div className="play-readout">
         <span style={{ color: "var(--you)" }}>
-          A {Math.round((cmp.lap.speed[idxA] ?? 0) * 3.6)} km/h
+          A {Math.round((cmp.lap.speed[idxA] ?? 0) * 2.23694)} mph
         </span>
         {!solo && (
           <>
             <span style={{ color: "var(--ref)" }}>
-              R {Math.round((cmp.ref.speed[idxB] ?? 0) * 3.6)} km/h
+              R {Math.round((cmp.ref.speed[idxB] ?? 0) * 2.23694)} mph
             </span>
             <span className={liveDelta >= 0 ? "loss" : "gain"}>
               {liveDelta >= 0 ? "+" : ""}{liveDelta.toFixed(2)}s

@@ -311,6 +311,18 @@ def create_app(adapter_name: str = "sim", data_dir: Path = Path("data")) -> Fast
         result = engine.store.ideal_lap(game, track, car_class=car_class, car=car)
         return result if result else Response(status_code=404)
 
+    @app.post("/api/overlay/launch")
+    def overlay_launch():
+        """Spawn the Electron overlay window (same machine as the engine)."""
+        import subprocess
+        root = Path(__file__).resolve().parents[2]
+        electron = root / "ui" / "node_modules" / "electron" / "dist" / "electron.exe"
+        script = root / "ui" / "electron" / "overlay-main.cjs"
+        if not electron.exists():
+            return {"ok": False, "error": "electron not installed (run npm install in ui/)"}
+        subprocess.Popen([str(electron), str(script)], cwd=str(root / "ui"))
+        return {"ok": True}
+
     @app.post("/api/import/game-history")
     def import_game_history():
         from .importers.lmu_results import import_results

@@ -79,9 +79,19 @@ between any two laps — the same principle professional motorsport telemetry
 uses. The full build story, including every bug reality threw at us, lives
 in [DEVLOG.md](DEVLOG.md).
 
+## In-game overlay
+
+Launch from the ☰ menu in the app (or `scripts\overlay.cmd`). A transparent
+always-on-top window over the game (borderless-windowed mode) showing a
+rolling trace of the reference lap's throttle/brake with your live inputs
+drawn over it, your pedal bars, and a gear indicator with the revs wrapped
+around it. Stacked or lengthwise strip layout, movable, resizable,
+per-widget toggles. Ctrl+Alt+O = click-through, Ctrl+Alt+H = hide,
+Ctrl+Alt+R = reload.
+
 ## Roadmap
 
-- In-game overlay widgets (live delta bar, input traces, track map)
+- More overlay widgets (live delta bar, track map)
 - More sims (iRacing first)
 - Lap file sharing (`.lapsmith` files already export/import)
 - Community reference laps

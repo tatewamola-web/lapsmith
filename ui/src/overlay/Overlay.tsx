@@ -15,9 +15,10 @@ interface Toggles {
   inputs: boolean;
   gear: boolean;
   times: boolean;
+  strip: boolean; // lengthwise layout: everything on one line
 }
 
-const DEFAULT_TOGGLES: Toggles = { trace: true, inputs: true, gear: true, times: true };
+const DEFAULT_TOGGLES: Toggles = { trace: true, inputs: true, gear: true, times: true, strip: false };
 const TRAIL = 900; // ~36s of frames for the live trace
 
 export default function Overlay() {
@@ -173,7 +174,7 @@ export default function Overlay() {
     : "no reference yet";
 
   return (
-    <div className="ovl">
+    <div className={`ovl ${toggles.strip ? "strip" : ""}`}>
       <div className="ovl-grip">
         <span className="ovl-title">LAPSMITH</span>
         <span className="ovl-sub">{frame ? `vs ${refLabel}` : "waiting for telemetry"}</span>
@@ -224,7 +225,7 @@ export default function Overlay() {
               </text>
             </svg>
             <div className="gear-speed">
-              {frame ? Math.round(frame.speed * 3.6) : "–"} <span>km/h</span>
+              {frame ? Math.round(frame.speed * 2.23694) : "–"} <span>mph</span>
             </div>
           </div>
         )}

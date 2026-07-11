@@ -181,11 +181,11 @@ export function DeltaChart({ cmp, markers }: { cmp: ComparePayload; markers?: Ch
 }
 
 export function SpeedChart({ cmp, markers }: { cmp: ComparePayload; markers?: ChartMarkers }) {
-  const kmh = (a: number[]) => a.map((v) => v * 3.6);
-  const data: uPlot.AlignedData = [pct(cmp.dist), kmh(cmp.lap.speed), kmh(cmp.ref.speed)];
+  const mph = (a: number[]) => a.map((v) => v * 2.23694);
+  const data: uPlot.AlignedData = [pct(cmp.dist), mph(cmp.lap.speed), mph(cmp.ref.speed)];
   const ref = useUplot(
     (w) => {
-      const o = baseOpts(w, 200, "km/h");
+      const o = baseOpts(w, 200, "mph");
       o.plugins = [wheelZoomPlugin(), markersPlugin(markers)];
       o.series.push({ stroke: "#4dd0e1", width: 1.5 });
       o.series.push({ stroke: "#ff8a3d", width: 1.5 });

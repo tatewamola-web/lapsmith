@@ -88,5 +88,41 @@ html, body, #root { margin: 0; height: 100%; background: transparent; overflow: 
   padding: 4px 12px 7px;
   font-size: 10.5px;
   color: #b8bfc6;
+  white-space: nowrap;
 }
 .ovl-row.times .gold { color: #d4a017; margin-left: auto; }
+
+/* -- strip (lengthwise) layout: everything on one line ------------------- */
+
+.ovl.strip { flex-direction: row; align-items: stretch; }
+.ovl.strip .ovl-grip {
+  writing-mode: vertical-rl;
+  padding: 8px 3px;
+  width: 20px;
+  flex-shrink: 0;
+}
+.ovl.strip .ovl-grip .ovl-sub { display: none; }
+.ovl.strip .ovl-trace { flex: 1; min-width: 140px; padding: 6px 6px; display: flex; }
+.ovl.strip .ovl-trace canvas { height: 100% !important; }
+.ovl.strip .ovl-mid { flex: 0 0 auto; padding: 6px 8px; }
+.ovl.strip .ovl-row.times {
+  flex-direction: column;
+  gap: 2px;
+  justify-content: center;
+  padding: 4px 10px;
+  flex-shrink: 0;
+}
+.ovl.strip .ovl-row.times .gold { margin-left: 0; }
+.ovl.strip .ovl-menu {
+  position: absolute;
+  left: 24px;
+  top: 4px;
+  z-index: 5;
+  border: 1px solid rgba(77, 208, 225, 0.3);
+  border-radius: 6px;
+}
+
+/* never let shrinking clip the essentials */
+.ovl-mid, .ovl-trace { overflow: hidden; }
+.gear-ring { flex-shrink: 0; }
+.pbars { flex-shrink: 0; }

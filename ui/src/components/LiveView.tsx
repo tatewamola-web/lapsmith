@@ -41,13 +41,13 @@ export default function LiveView({ frame, status }: Props) {
         <div className="cell" style={{ gridColumn: "1 / -1" }}>
           <div className="label">Speed</div>
           <div className="value">
-            {frame ? Math.round(frame.speed * 3.6) : "–"}
-            <span className="unit">km/h</span>
+            {frame ? Math.round(frame.speed * 2.23694) : "–"}
+            <span className="unit">mph</span>
           </div>
           <div className="hbar">
             <div
               className="fill rpm"
-              style={{ width: `${frame ? Math.min((frame.speed * 3.6) / 340, 1) * 100 : 0}%` }}
+              style={{ width: `${frame ? Math.min((frame.speed * 2.23694) / 210, 1) * 100 : 0}%` }}
             />
           </div>
         </div>

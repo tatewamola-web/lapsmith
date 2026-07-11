@@ -89,7 +89,7 @@ function CornerPanel({ ins }: { ins: Insights }) {
                 {c.loss.toFixed(3)}
               </td>
               <td className="num">
-                {c.apex_kmh_you.toFixed(0)} / {c.apex_kmh_ref.toFixed(0)} km/h
+                {(c.apex_kmh_you * 0.621371).toFixed(0)} / {(c.apex_kmh_ref * 0.621371).toFixed(0)} mph
               </td>
               <td className="advice">{c.advice}</td>
             </tr>

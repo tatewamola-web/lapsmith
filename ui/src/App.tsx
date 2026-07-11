@@ -181,8 +181,23 @@ export default function App() {
                 <div className="item"><span>Engine</span><b>{status ? (status.connected ? "connected" : "waiting") : "offline"}</b></div>
                 <div className="item"><span>Laps this run</span><b>{status?.laps_recorded ?? 0}</b></div>
                 <div className="sep" />
+                <div className="item">
+                  <button
+                    className="pick"
+                    style={{ width: "100%", padding: "6px" }}
+                    onClick={async () => {
+                      const r = await fetch("/api/overlay/launch", { method: "POST" });
+                      const d = await r.json().catch(() => ({ ok: false }));
+                      alert(d.ok ? "Overlay launched — Ctrl+Alt+O for click-through, Ctrl+Alt+H to hide." : `Overlay failed: ${d.error ?? "unknown"}`);
+                      setMenuOpen(false);
+                    }}
+                  >
+                    ▶ LAUNCH IN-GAME OVERLAY
+                  </button>
+                </div>
+                <div className="sep" />
                 <div className="item"><span>Data folder</span><b>data\</b></div>
-                <div className="item"><span>Version</span><b>0.2.0</b></div>
+                <div className="item"><span>Version</span><b>0.3.0</b></div>
               </div>
             )}
           </div>

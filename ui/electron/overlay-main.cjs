@@ -13,10 +13,17 @@ const path = require("path");
 const statePath = path.join(app.getPath("userData"), "overlay-state.json");
 let clickThrough = false;
 
-// one overlay at a time — a second launch focuses the existing window
+// one overlay at a time — a second launch refreshes the existing window
 if (!app.requestSingleInstanceLock()) {
   app.quit();
 }
+app.on("second-instance", () => {
+  const win = BrowserWindow.getAllWindows()[0];
+  if (win) {
+    win.show();
+    win.webContents.reloadIgnoringCache();
+  }
+});
 
 function loadState() {
   try {

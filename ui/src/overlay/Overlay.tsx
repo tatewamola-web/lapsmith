@@ -217,6 +217,7 @@ export default function Overlay() {
           <div className="ovl-hint">
             ref: {refLabel} · Ctrl+Alt+O click-through · Ctrl+Alt+H hide · resize corners to scale
           </div>
+          <button className="ovl-close" onClick={() => window.close()}>✕ close overlay</button>
         </div>
       )}
 

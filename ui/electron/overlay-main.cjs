@@ -46,12 +46,24 @@ app.whenReady().then(() => {
   });
   globalShortcut.register("Control+Alt+R", () => win.webContents.reloadIgnoringCache());
 
+  // Resizing from the corners scales the whole overlay: zoom follows the
+  // window's smaller dimension against its baseline layout size.
+  const applyZoom = () => {
+    const [w, h] = win.getSize();
+    const horizontal = w / h > 3;
+    const base = horizontal ? { w: 640, h: 110 } : { w: 360, h: 190 };
+    const zoom = Math.max(0.6, Math.min(2.5, Math.min(w / base.w, h / base.h)));
+    win.webContents.setZoomFactor(zoom);
+  };
+  win.webContents.on("did-finish-load", applyZoom);
+
   const saveBounds = () => {
     try {
       fs.writeFileSync(statePath, JSON.stringify(win.getBounds()));
     } catch {}
   };
   win.on("moved", saveBounds);
+  win.on("resize", applyZoom);
   win.on("resized", saveBounds);
 
   globalShortcut.register("Control+Alt+O", () => {

@@ -15,11 +15,15 @@ interface Toggles {
   inputs: boolean;
   gear: boolean;
   times: boolean;
-  strip: boolean; // lengthwise layout: everything on one line
+  horizontal: boolean; // lengthwise layout: everything on one line
+  autohide: boolean;   // only visible while actually on track
 }
 
-const DEFAULT_TOGGLES: Toggles = { trace: true, inputs: true, gear: true, times: true, strip: false };
-const TRAIL = 900; // ~36s of frames for the live trace
+const DEFAULT_TOGGLES: Toggles = {
+  trace: true, inputs: true, gear: true, times: true,
+  horizontal: false, autohide: true,
+};
+const TRAIL = 1800; // ~72s of frames for the live trace
 
 export default function Overlay() {
   const [frame, setFrame] = useState<LiveFrame | null>(null);
@@ -35,12 +39,27 @@ export default function Overlay() {
   });
   const comboKey = useRef("");
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  // on-track detection: the engine only streams frames while the sim is
+  // live — silence means menus/garage
+  const lastMsgAt = useRef(0);
+  const [onTrack, setOnTrack] = useState(false);
   // my recent inputs by distance, cleared each new lap
   const trail = useRef<{ d: number; thr: number; brk: number }[]>([]);
   const lastLapNo = useRef(-1);
   const maxRpm = useRef(8000);
 
-  useEffect(() => openLive(setFrame), []);
+  useEffect(
+    () =>
+      openLive((f) => {
+        lastMsgAt.current = Date.now();
+        setFrame(f);
+      }),
+    []
+  );
+  useEffect(() => {
+    const h = setInterval(() => setOnTrack(Date.now() - lastMsgAt.current < 3000), 1000);
+    return () => clearInterval(h);
+  }, []);
 
   // reference = fastest lap with telemetry for this track+class, any driver
   useEffect(() => {
@@ -104,8 +123,8 @@ export default function Overlay() {
     ctx.clearRect(0, 0, w, h);
     if (!frame) return;
 
-    const back = 240; // meters behind the car
-    const ahead = 160; // meters ahead
+    const back = 480; // meters behind the car
+    const ahead = 320; // meters ahead
     const d0 = frame.lap_dist - back;
     const d1 = frame.lap_dist + ahead;
     const X = (d: number) => ((d - d0) / (d1 - d0)) * w;
@@ -118,7 +137,7 @@ export default function Overlay() {
       const iB = Math.min(Math.ceil(d1 / step), refLap.lap_dist.length - 1);
       const drawRef = (arr: number[], color: string) => {
         ctx.strokeStyle = color;
-        ctx.lineWidth = 1.4;
+        ctx.lineWidth = 2;
         ctx.beginPath();
         for (let i = iA; i <= iB; i++) {
           const px = X(i * step);
@@ -126,24 +145,27 @@ export default function Overlay() {
         }
         ctx.stroke();
       };
-      drawRef(refLap.throttle, "rgba(63,185,80,0.38)");
-      drawRef(refLap.brake, "rgba(248,81,73,0.42)");
+      drawRef(refLap.throttle, "rgba(46,160,67,0.6)");
+      drawRef(refLap.brake, "rgba(218,54,51,0.65)");
     }
 
     // my actual inputs up to the car (bright)
     const t = trail.current;
     const drawMine = (getV: (p: { thr: number; brk: number }) => number, color: string) => {
-      ctx.strokeStyle = color;
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      let started = false;
-      for (const p of t) {
-        if (p.d < d0 || p.d > frame.lap_dist) continue;
-        const px = X(p.d);
-        started ? ctx.lineTo(px, Y(getV(p))) : ctx.moveTo(px, Y(getV(p)));
-        started = true;
+      // dark underlay first so the line pops against any game background
+      for (const [c, w] of [["rgba(0,0,0,0.85)", 4.5], [color, 2.6]] as const) {
+        ctx.strokeStyle = c as string;
+        ctx.lineWidth = w as number;
+        ctx.beginPath();
+        let started = false;
+        for (const p of t) {
+          if (p.d < d0 || p.d > frame.lap_dist) continue;
+          const px = X(p.d);
+          started ? ctx.lineTo(px, Y(getV(p))) : ctx.moveTo(px, Y(getV(p)));
+          started = true;
+        }
+        ctx.stroke();
       }
-      ctx.stroke();
     };
     drawMine((p) => p.thr, "#3fb950");
     drawMine((p) => p.brk, "#f85149");
@@ -173,13 +195,12 @@ export default function Overlay() {
       : `${refMeta.driver.split(" ")[0]} ${fmtTime(refMeta.lap_time)}`
     : "no reference yet";
 
+  const hidden = toggles.autohide && !onTrack;
+
   return (
-    <div className={`ovl ${toggles.strip ? "strip" : ""}`}>
-      <div className="ovl-grip">
-        <span className="ovl-title">LAPSMITH</span>
-        <span className="ovl-sub">{frame ? `vs ${refLabel}` : "waiting for telemetry"}</span>
-        <button className="ovl-gear" onClick={() => setMenuOpen(!menuOpen)}>⚙</button>
-      </div>
+    <div className={`ovl ${toggles.horizontal ? "horizontal" : ""} ${hidden ? "faded" : ""}`}>
+      <div className="ovl-grip" title="drag to move" />
+      <button className="ovl-gear" onClick={() => setMenuOpen(!menuOpen)}>⚙</button>
 
       {menuOpen && (
         <div className="ovl-menu">
@@ -193,7 +214,9 @@ export default function Overlay() {
               {k}
             </label>
           ))}
-          <div className="ovl-hint">Ctrl+Alt+O click-through · Ctrl+Alt+H hide</div>
+          <div className="ovl-hint">
+            ref: {refLabel} · Ctrl+Alt+O click-through · Ctrl+Alt+H hide · resize corners to scale
+          </div>
         </div>
       )}
 

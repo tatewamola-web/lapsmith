@@ -33,7 +33,21 @@ if (-not $up) {
             Write-Host "Could not start the engine: $_"
         }
     }
-    Start-Sleep -Seconds 3
+}
+
+# wait for the engine to actually answer before opening the browser
+$ready = $false
+for ($i = 0; $i -lt 25; $i++) {
+    try {
+        $r = Invoke-WebRequest -Uri "http://127.0.0.1:8000/api/status" -TimeoutSec 2 -UseBasicParsing
+        if ($r.StatusCode -eq 200) { $ready = $true; break }
+    } catch {}
+    Start-Sleep -Seconds 1
+}
+if (-not $ready) {
+    Write-Host "Engine did not start within 25s - check that Python is not blocked by Windows security."
+    Read-Host "Press Enter to close"
+    exit 1
 }
 
 Start-Process "http://localhost:8000"

@@ -29,7 +29,7 @@ function loadState() {
   try {
     return JSON.parse(fs.readFileSync(statePath, "utf-8"));
   } catch {
-    return { x: 80, y: 80, width: 360, height: 190 };
+    return { x: 80, y: 80, width: 290, height: 152 };
   }
 }
 
@@ -43,8 +43,8 @@ app.whenReady().then(() => {
     resizable: true,
     skipTaskbar: true,
     hasShadow: false,
-    minWidth: 330,
-    minHeight: 96,
+    minWidth: 170,
+    minHeight: 52,
   });
   win.setAlwaysOnTop(true, "screen-saver"); // above borderless-windowed games
   // Electron's heuristic cache can pin an old overlay build — always start fresh.
@@ -59,7 +59,7 @@ app.whenReady().then(() => {
     const [w, h] = win.getSize();
     const horizontal = w / h > 3;
     const base = horizontal ? { w: 640, h: 110 } : { w: 360, h: 190 };
-    const zoom = Math.max(0.6, Math.min(2.5, Math.min(w / base.w, h / base.h)));
+    const zoom = Math.max(0.3, Math.min(2.5, Math.min(w / base.w, h / base.h)));
     win.webContents.setZoomFactor(zoom);
   };
   win.webContents.on("did-finish-load", applyZoom);

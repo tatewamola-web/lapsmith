@@ -16,21 +16,30 @@ try {
 } catch {}
 
 if (-not $up) {
-    # Windows App Control sometimes blocks the venv's python.exe copy;
-    # fall back to the base interpreter with the venv's packages on path.
+    # Same environment regardless of which interpreter runs: the venv's
+    # packages are always on PYTHONPATH, so the venv python or the base
+    # uv python both work identically.
+    $env:PYTHONPATH = "$root\engine;$root\engine\.venv\Lib\site-packages"
+    New-Item -ItemType Directory -Force -Path "$root\data" | Out-Null
+    $log = "$root\data\engine.log"
+    $errlog = "$root\data\engine.err.log"
+
+    $candidates = @($python)
     $base = Get-ChildItem "$env:APPDATA\uv\python\cpython-3.12*\python.exe" -ErrorAction SilentlyContinue | Select-Object -First 1
-    try {
-        Start-Process -FilePath $python `
-            -ArgumentList "-m", "apex_engine", "--adapter", $Adapter `
-            -WorkingDirectory $root -WindowStyle Minimized -ErrorAction Stop
-    } catch {
-        if ($base) {
-            $env:PYTHONPATH = "$root\engine;$root\engine\.venv\Lib\site-packages"
-            Start-Process -FilePath $base.FullName `
+    if ($base) { $candidates += $base.FullName }
+
+    foreach ($exe in $candidates) {
+        if (-not (Test-Path $exe)) { continue }
+        try {
+            # engine output goes to data\engine.log so failures are diagnosable
+            Start-Process -FilePath $exe `
                 -ArgumentList "-m", "apex_engine", "--adapter", $Adapter `
-                -WorkingDirectory $root -WindowStyle Minimized
-        } else {
-            Write-Host "Could not start the engine: $_"
+                -WorkingDirectory $root -WindowStyle Hidden `
+                -RedirectStandardOutput $log -RedirectStandardError $errlog `
+                -ErrorAction Stop
+            break
+        } catch {
+            Write-Host "Could not start $exe : $_"
         }
     }
 }

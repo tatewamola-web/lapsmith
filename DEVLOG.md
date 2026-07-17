@@ -305,6 +305,62 @@ official turns across 9 zones; Sebring School shows its 7 real corners.
 
 ---
 
+## 2026-07-09 → 07-16 — Week 2: Classes, rivals, overlays, real roads
+
+*(Catch-up entry — these shipped across several sessions.)*
+
+### Class-based everything
+PBs, the ideal lap, and filtering now group by car class (Hyper, GT3,
+LMP3…) read live from shared memory and from the game's result logs —
+comparing a Hypercar lap to a GT3 lap was never a fair fight. Existing
+laps backfilled by mapping car names to classes from the logs.
+
+### Capturing faster drivers, live
+The same shared memory that carries your car carries every car. The
+engine now records all same-class opponents during a session and keeps
+two kinds of reference laps: any lap faster than everything in the
+library, and the best lap of the fastest driver you actually raced.
+First online race (Algarve) promptly flooded the library — a dozen
+humans improving simultaneously beat the in-memory keep-logic — so the
+rule moved into SQL as an idempotent prune the database enforces after
+every save. **Lesson: invariants belong in the data layer, not in
+whoever remembered to update a variable.**
+
+### In-game overlay (v1 → v2)
+A transparent, always-on-top Electron window over the game: a rolling
+~800 m trace of the reference lap's throttle/brake with your live inputs
+drawn on top, your pedal bars, and a gear digit with the revs wrapped
+around it as a ring. Movable, corner-resize scales everything (30%–250%),
+stacked or lengthwise layout, auto-hides in menus (the engine only
+streams frames while the sim is live — silence *is* the menu detector).
+Launched from the app's menu via a one-endpoint spawn.
+
+### Empirical track edges
+Sims don't publish surveyed track boundaries, so Lapsmith builds them
+from evidence: every valid lap is a sample of legal road; project each
+onto the reference line's normals and the min/max envelope (plus half a
+car width) traces the road actually used. Every session sharpens the
+outline. Off-track laps are excluded — they'd literally draw the crash
+into the map. (A reconstructed centerline from the sim's undocumented
+lateral-offset channel was tried first and reverted: wrong-sign flips
+put the corridor in the scenery. **Lesson: revert fast when the data
+source can't be trusted; find evidence you can generate yourself.**)
+
+### The launcher saga
+Windows App Control intermittently blocked the venv's python.exe; the
+launcher grew a two-path fallback that misfired silently, and "works on
+my shell" turned out to be environment contamination (PYTHONPATH set in
+the dev shell, absent on a double-click). Now: one deterministic
+environment for any interpreter, engine output captured to
+data\engine.log, and the browser only opens once the engine actually
+answers. **Lesson: test in the user's environment, not yours — and make
+failures leave evidence.**
+
+### Library today
+529 laps · 91 sessions · 12 tracks · 104 captured rival laps · 3 classes.
+
+---
+
 ## Design principles that emerged (running list)
 
 1. **Wall off what varies.** One adapter per sim; everything else is shared.

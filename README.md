@@ -68,10 +68,10 @@ Details in [docs/SETUP_LMU.md](docs/SETUP_LMU.md).
 ## How it works
 
 ```
-┌──────────────┐  normalized   ┌───────────────┐  REST + WebSocket  ┌──────────┐
-│ Game adapter  │ ── frames ──▶ │ Engine         │ ─────────────────▶ │ UI        │
-│ (LMU, sim...) │   (50 Hz)     │ record·analyze │                    │ React     │
-└──────────────┘               └───────────────┘                    └──────────┘
+┌──────────────┐             ┌──────────────┐              ┌──────────────┐
+│ game adapter │ ─ frames ─► │    engine    │ ─ REST/WS ─► │  UI/overlay  │
+│  (LMU, sim)  │   (50 Hz)   │ record+math  │              │    React     │
+└──────────────┘             └──────────────┘              └──────────────┘
 ```
 
 Laps are compared **by track position, not by time**, so corners line up

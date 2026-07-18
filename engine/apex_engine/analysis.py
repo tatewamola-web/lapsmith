@@ -366,6 +366,110 @@ def insights(lap: dict[str, np.ndarray], ref: dict[str, np.ndarray],
     }
 
 
+def coach(laps: list, track: str = "") -> Optional[dict]:
+    """Personalized coaching: least-squares regression across YOUR laps.
+
+    For every corner, each lap contributes features (braking point, minimum
+    speed, throttle-application point) and the time it took through that
+    corner. Fitting corner_time ~ features across many laps measures how
+    much each habit costs THIS driver at THIS corner — not a generic rule.
+    Recommendations rank by expected gain if the median habit moved to the
+    driver's own demonstrated best.
+    """
+    def total(ch):
+        return float(ch["lap_time"][-1]) if len(ch.get("lap_time", ())) else 1e9
+
+    laps = [l for l in laps if "lap_dist" in l and "brake" in l]
+    if len(laps) < 8:
+        return None
+    laps = sorted(laps, key=total)
+    ref = laps[0]  # fastest lap defines geometry and "your best" habits
+
+    max_d = float(ref["lap_dist"].max())
+    grid = np.arange(0.0, max_d, GRID_STEP)
+    b = resample_lap(ref, grid)
+    apexes = _find_corner_apexes_geo(b) or _find_corner_apexes(grid, b["speed"])
+    if not apexes:
+        return None
+    from .track_data import assign_names
+    names = assign_names(track, [float(grid[a]) / max_d * 100 for a in apexes])
+
+    n = len(grid)
+    resampled = []
+    for ch in laps:
+        try:
+            resampled.append(resample_lap(ch, grid))
+        except (KeyError, ValueError):
+            continue
+
+    def features(r, start, apex, end):
+        zone = np.where(r["brake"][start:apex + 1] > 0.4)[0]
+        bp = float(grid[start + zone[0]]) if len(zone) else None
+        vmin = float(r["speed"][start:end + 1].min())
+        tzone = np.where(r["throttle"][apex:end + 1] > 0.9)[0]
+        ton = float(grid[apex + tzone[0]]) if len(tzone) else None
+        ctime = float(r["lap_time"][end] - r["lap_time"][start])
+        return bp, vmin, ton, ctime
+
+    FEATS = ("bp", "vmin", "ton")
+    tips = []
+    for ci, apex in enumerate(apexes):
+        prev_a = apexes[ci - 1] if ci > 0 else 0
+        next_a = apexes[ci + 1] if ci + 1 < len(apexes) else n - 1
+        start = (prev_a + apex) // 2 if ci > 0 else max(apex - 60, 0)
+        end = (apex + next_a) // 2 if ci + 1 < len(apexes) else min(apex + 60, n - 1)
+
+        rows, times = [], []
+        for r in resampled:
+            bp, vmin, ton, ctime = features(r, start, apex, end)
+            if bp is None or ton is None or not np.isfinite(ctime) or ctime <= 0:
+                continue
+            rows.append((bp, vmin, ton))
+            times.append(ctime)
+        if len(rows) < 8:
+            continue
+
+        X = np.array(rows)
+        y = np.array(times)
+        # sane-lap filter: drop traversals wildly slower than typical (offs)
+        keep = y < np.median(y) * 1.15
+        X, y = X[keep], y[keep]
+        if len(y) < 8:
+            continue
+
+        mu, sd = X.mean(axis=0), X.std(axis=0)
+        sd[sd < 1e-6] = 1.0
+        Xs = np.column_stack([np.ones(len(y)), (X - mu) / sd])
+        coefs, *_ = np.linalg.lstsq(Xs, y, rcond=None)
+        coefs = coefs[1:] / sd  # back to seconds per natural unit
+
+        best = np.array(rows)[0] if keep[0] else X[np.argmin(y)]
+        med = np.median(X, axis=0)
+        for fi, feat in enumerate(FEATS):
+            gain = float(coefs[fi] * (med[fi] - best[fi]))
+            if gain < 0.03:
+                continue
+            delta = abs(med[fi] - best[fi])
+            if feat == "bp":
+                direction = "later" if best[fi] > med[fi] else "earlier"
+                msg = f"brake ~{delta:.0f}m {direction}"
+            elif feat == "vmin":
+                msg = f"carry ~{delta * 2.23694:.0f}mph more minimum speed"
+            else:
+                direction = "sooner" if best[fi] < med[fi] else "later"
+                msg = f"back to full throttle ~{delta:.0f}m {direction}"
+            tips.append({
+                "corner": names[ci] or f"T{ci + 1}",
+                "apex_pct": round(float(grid[apex]) / max_d * 100, 1),
+                "message": f"{msg} — like your fastest laps do",
+                "gain": round(gain, 3),
+                "laps_used": int(len(y)),
+            })
+
+    tips.sort(key=lambda t: -t["gain"])
+    return {"laps_analyzed": len(resampled), "tips": tips[:6]}
+
+
 def lap_channels_payload(channels: dict[str, np.ndarray]) -> dict:
     """Single-lap payload resampled to the grid (for viewing one lap)."""
     max_d = float(channels["lap_dist"].max())

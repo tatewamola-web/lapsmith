@@ -16,6 +16,7 @@ interface Props {
   cmp: ComparePayload;
   insights: Insights | null;
   solo?: boolean;
+  hoverPct?: number | null; // chart hover: marker + follow-cam target
 }
 
 function officialLabel(name: string, n: number): string {
@@ -37,7 +38,7 @@ function distAt(t: number, times: number[], dist: number[]): number {
   return dist[lo] + f * (dist[hi] - dist[lo]);
 }
 
-export default function RacingLine({ cmp, insights, solo = false }: Props) {
+export default function RacingLine({ cmp, insights, solo = false, hoverPct = null }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [cornerN, setCornerN] = useState<number | null>(null);
   const [follow, setFollow] = useState(false); // chase-cam during playback
@@ -138,14 +139,26 @@ export default function RacingLine({ cmp, insights, solo = false }: Props) {
       return [xs[i] + (xs[i + 1] - xs[i]) * f, zs[i] + (zs[i + 1] - zs[i]) * f];
     };
 
-    // follow cam: fixed ~170 m frame centered between the two cars
-    const followActive = follow && clock > 0;
+    // follow cam: fixed ~170 m frame centered on the cars during playback,
+    // or on the chart-hover point when FOLLOW is on and nothing is playing
+    const hoverIdx = hoverPct != null
+      ? Math.min(Math.round((hoverPct / 100) * (x.length - 1)), x.length - 1)
+      : null;
+    const followActive = follow && (clock > 0 || hoverIdx != null);
     if (followActive) {
-      const [ax, az] = carWorld(you_x, you_z, tA);
-      const [bx, bz] = solo ? [ax, az] : carWorld(x, z, tB);
+      let mx: number, mz: number;
+      if (clock > 0) {
+        const [ax, az] = carWorld(you_x, you_z, tA);
+        const [bx, bz] = solo ? [ax, az] : carWorld(x, z, tB);
+        mx = (ax + bx) / 2;
+        mz = (az + bz) / 2;
+      } else {
+        mx = x[hoverIdx!];
+        mz = z[hoverIdx!];
+      }
       fit = Math.min(cssW, cssH) / 170;
-      ox = cssW / 2 - ((ax + bx) / 2 - minX) * fit;
-      oz = cssH / 2 - (maxZ - (az + bz) / 2) * fit;
+      ox = cssW / 2 - (mx - minX) * fit;
+      oz = cssH / 2 - (maxZ - mz) * fit;
     }
 
     const { k, tx, ty } = view.current;
@@ -235,7 +248,23 @@ export default function RacingLine({ cmp, insights, solo = false }: Props) {
       if (!solo) dot(x, z, tB, "#ff8a3d");
       dot(you_x, you_z, tA, "#4dd0e1");
     }
-  }, [cmp, insights, cornerN, clock, playing, solo, step]);
+
+    // chart-hover markers on both driven lines
+    if (hoverIdx != null && clock === 0) {
+      for (const [xs, zs, color] of [
+        [you_x, you_z, "#4dd0e1"],
+        ...(solo ? [] : [[x, z, "#ff8a3d"] as const]),
+      ] as const) {
+        ctx.fillStyle = color as string;
+        ctx.beginPath();
+        ctx.arc(PX((xs as number[])[hoverIdx]), PZ((zs as number[])[hoverIdx]), 4.5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = "#0e1114";
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+      }
+    }
+  }, [cmp, insights, cornerN, clock, playing, solo, step, hoverPct]);
 
   useEffect(() => draw(), [draw]);
 

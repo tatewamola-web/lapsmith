@@ -3,10 +3,11 @@
 import { useEffect, useState } from "react";
 import type { ComparePayload, IdealLap, Insights, LapMeta } from "../api";
 import { fmtTime, getIdeal, getLapData } from "../api";
+import CoachPanel from "./CoachPanel";
 import LapList from "./LapList";
 import RacingLine from "./RacingLine";
 import TrackMap from "./TrackMap";
-import { ChartMarkers, DeltaChart, PedalChart, SpeedChart, SteeringChart } from "./Charts";
+import { ChartMarkers, DeltaChart, GearChart, PedalChart, SpeedChart, SteeringChart } from "./Charts";
 
 /** "T4-5 Variante della Roggia" -> "T4-5"; unnamed corners count as turns. */
 export function officialLabel(name: string, n: number): string {
@@ -107,6 +108,8 @@ export default function AnalysisView({
 }: Props) {
   const finalDelta = cmp ? cmp.delta[cmp.delta.length - 1] : null;
   const [ideal, setIdeal] = useState<IdealLap | null>(null);
+  // hovered % of lap, shared by every chart and both maps
+  const [hoverPct, setHoverPct] = useState<number | null>(null);
   const [soloCmp, setSoloCmp] = useState<ComparePayload | null>(null);
 
   // Solo mode: one lap picked, no reference — build a playback-only
@@ -221,32 +224,59 @@ export default function AnalysisView({
 
             <div className="grid-2col">
               <div>
+                {hoverPct != null && (() => {
+                  const i = Math.min(
+                    Math.round((hoverPct / 100) * (cmp.dist.length - 1)),
+                    cmp.dist.length - 1
+                  );
+                  return (
+                    <div className="hover-readout">
+                      <span className="dim">{hoverPct.toFixed(1)}% · {(cmp.dist[i] / 1000).toFixed(2)}km</span>
+                      <span style={{ color: "var(--you)" }}>
+                        A {Math.round(cmp.lap.speed[i] * 2.23694)}mph · G{cmp.lap.gear[i]} ·
+                        T{Math.round(cmp.lap.throttle[i] * 100)}% B{Math.round(cmp.lap.brake[i] * 100)}%
+                      </span>
+                      <span style={{ color: "var(--ref)" }}>
+                        R {Math.round(cmp.ref.speed[i] * 2.23694)}mph · G{cmp.ref.gear[i]} ·
+                        T{Math.round(cmp.ref.throttle[i] * 100)}% B{Math.round(cmp.ref.brake[i] * 100)}%
+                      </span>
+                      <span className={cmp.delta[i] >= 0 ? "loss" : "gain"}>
+                        {cmp.delta[i] >= 0 ? "+" : ""}{cmp.delta[i].toFixed(3)}s
+                      </span>
+                    </div>
+                  );
+                })()}
                 <div className="panel">
                   <h3>Time Delta</h3>
-                  <DeltaChart cmp={cmp} markers={markers} />
+                  <DeltaChart cmp={cmp} markers={markers} onHover={setHoverPct} />
                 </div>
                 <div className="panel">
                   <h3>Speed</h3>
-                  <SpeedChart cmp={cmp} markers={markers} />
+                  <SpeedChart cmp={cmp} markers={markers} onHover={setHoverPct} />
                 </div>
                 <div className="panel">
                   <h3>Throttle / Brake</h3>
-                  <PedalChart cmp={cmp} markers={markers} />
+                  <PedalChart cmp={cmp} markers={markers} onHover={setHoverPct} />
+                </div>
+                <div className="panel">
+                  <h3>Gear</h3>
+                  <GearChart cmp={cmp} markers={markers} onHover={setHoverPct} />
                 </div>
                 <div className="panel">
                   <h3>Steering</h3>
-                  <SteeringChart cmp={cmp} markers={markers} />
+                  <SteeringChart cmp={cmp} markers={markers} onHover={setHoverPct} />
                 </div>
                 {insights && insights.corners.length > 0 && <CornerPanel ins={insights} />}
+                <CoachPanel meta={cmp.lap_meta} />
               </div>
               <div>
                 <div className="panel">
                   <h3>Track · time gain/loss</h3>
-                  <TrackMap cmp={cmp} insights={insights} />
+                  <TrackMap cmp={cmp} insights={insights} hoverPct={hoverPct} />
                 </div>
                 <div className="panel">
                   <h3>Racing Line · A vs R</h3>
-                  <RacingLine cmp={cmp} insights={insights} />
+                  <RacingLine cmp={cmp} insights={insights} hoverPct={hoverPct} />
                 </div>
                 {ideal && <IdealPanel ideal={ideal} />}
                 <div className="panel">

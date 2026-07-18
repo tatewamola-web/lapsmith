@@ -55,6 +55,7 @@ function baseOpts(width: number, height: number, yLabel: string): uPlot.Options 
     cursor: {
       sync: { key: SYNC_KEY.key, setSeries: false },
       points: { size: 5 },
+      y: false, // vertical crosshair only — the horizontal line is noise
     },
     legend: { show: false },
     scales: { x: { time: false } },
@@ -113,6 +114,19 @@ function wheelZoomPlugin(): uPlot.Plugin {
   };
 }
 
+/** Report the hovered %-of-lap to the app so maps can follow the cursor. */
+function hoverPlugin(onHover?: (pct: number | null) => void): uPlot.Plugin {
+  return {
+    hooks: {
+      setCursor: (u) => {
+        if (!onHover) return;
+        const { idx } = u.cursor;
+        onHover(idx == null ? null : (u.data[0][idx] as number));
+      },
+    },
+  };
+}
+
 /** Sector lines (dashed verticals) and corner labels drawn onto the plot. */
 function markersPlugin(markers?: ChartMarkers): uPlot.Plugin {
   return {
@@ -151,12 +165,17 @@ function markersPlugin(markers?: ChartMarkers): uPlot.Plugin {
   };
 }
 
-export function DeltaChart({ cmp, markers }: { cmp: ComparePayload; markers?: ChartMarkers }) {
+export interface ChartHoverProps {
+  markers?: ChartMarkers;
+  onHover?: (pct: number | null) => void;
+}
+
+export function DeltaChart({ cmp, markers, onHover }: { cmp: ComparePayload } & ChartHoverProps) {
   const data: uPlot.AlignedData = [pct(cmp.dist), cmp.delta];
   const ref = useUplot(
     (w) => {
       const o = baseOpts(w, 150, "delta s");
-      o.plugins = [wheelZoomPlugin(), markersPlugin(markers)];
+      o.plugins = [wheelZoomPlugin(), markersPlugin(markers), hoverPlugin(onHover)];
       o.series.push({
         stroke: "#e8eaed",
         width: 1.5,
@@ -180,13 +199,13 @@ export function DeltaChart({ cmp, markers }: { cmp: ComparePayload; markers?: Ch
   return <div ref={ref} />;
 }
 
-export function SpeedChart({ cmp, markers }: { cmp: ComparePayload; markers?: ChartMarkers }) {
+export function SpeedChart({ cmp, markers, onHover }: { cmp: ComparePayload } & ChartHoverProps) {
   const mph = (a: number[]) => a.map((v) => v * 2.23694);
   const data: uPlot.AlignedData = [pct(cmp.dist), mph(cmp.lap.speed), mph(cmp.ref.speed)];
   const ref = useUplot(
     (w) => {
       const o = baseOpts(w, 200, "mph");
-      o.plugins = [wheelZoomPlugin(), markersPlugin(markers)];
+      o.plugins = [wheelZoomPlugin(), markersPlugin(markers), hoverPlugin(onHover)];
       o.series.push({ stroke: "#4dd0e1", width: 1.5 });
       o.series.push({ stroke: "#ff8a3d", width: 1.5 });
       return o;
@@ -197,7 +216,7 @@ export function SpeedChart({ cmp, markers }: { cmp: ComparePayload; markers?: Ch
   return <div ref={ref} />;
 }
 
-export function PedalChart({ cmp, markers }: { cmp: ComparePayload; markers?: ChartMarkers }) {
+export function PedalChart({ cmp, markers, onHover }: { cmp: ComparePayload } & ChartHoverProps) {
   const p100 = (a: number[]) => a.map((v) => v * 100);
   const data: uPlot.AlignedData = [
     pct(cmp.dist),
@@ -209,7 +228,7 @@ export function PedalChart({ cmp, markers }: { cmp: ComparePayload; markers?: Ch
   const ref = useUplot(
     (w) => {
       const o = baseOpts(w, 150, "%");
-      o.plugins = [wheelZoomPlugin(), markersPlugin(markers)];
+      o.plugins = [wheelZoomPlugin(), markersPlugin(markers), hoverPlugin(onHover)];
       o.series.push({ stroke: "#3fb950", width: 1.5 });
       o.series.push({ stroke: "rgba(63,185,80,0.45)", width: 1.2, dash: [4, 4] });
       o.series.push({ stroke: "#f85149", width: 1.5 });
@@ -222,12 +241,29 @@ export function PedalChart({ cmp, markers }: { cmp: ComparePayload; markers?: Ch
   return <div ref={ref} />;
 }
 
-export function SteeringChart({ cmp, markers }: { cmp: ComparePayload; markers?: ChartMarkers }) {
+export function GearChart({ cmp, markers, onHover }: { cmp: ComparePayload } & ChartHoverProps) {
+  const data: uPlot.AlignedData = [pct(cmp.dist), cmp.lap.gear, cmp.ref.gear];
+  const ref = useUplot(
+    (w) => {
+      const o = baseOpts(w, 110, "gear");
+      o.plugins = [wheelZoomPlugin(), markersPlugin(markers), hoverPlugin(onHover)];
+      const stepped = uPlot.paths.stepped ? uPlot.paths.stepped({ align: 1 }) : undefined;
+      o.series.push({ stroke: "#4dd0e1", width: 1.6, paths: stepped });
+      o.series.push({ stroke: "#ff8a3d", width: 1.3, dash: [4, 4], paths: stepped });
+      return o;
+    },
+    data,
+    [cmp]
+  );
+  return <div ref={ref} />;
+}
+
+export function SteeringChart({ cmp, markers, onHover }: { cmp: ComparePayload } & ChartHoverProps) {
   const data: uPlot.AlignedData = [pct(cmp.dist), cmp.lap.steering, cmp.ref.steering];
   const ref = useUplot(
     (w) => {
       const o = baseOpts(w, 110, "steer");
-      o.plugins = [wheelZoomPlugin(), markersPlugin(markers)];
+      o.plugins = [wheelZoomPlugin(), markersPlugin(markers), hoverPlugin(onHover)];
       o.series.push({ stroke: "#4dd0e1", width: 1.2 });
       o.series.push({ stroke: "#ff8a3d", width: 1.2 });
       return o;

@@ -5,7 +5,11 @@
 import { useEffect, useRef } from "react";
 import type { ComparePayload, Insights } from "../api";
 
-export default function TrackMap({ cmp, insights }: { cmp: ComparePayload; insights?: Insights | null }) {
+export default function TrackMap({ cmp, insights, hoverPct }: {
+  cmp: ComparePayload;
+  insights?: Insights | null;
+  hoverPct?: number | null;
+}) {
   const ref = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
@@ -72,6 +76,18 @@ export default function TrackMap({ cmp, insights }: { cmp: ComparePayload; insig
     ctx.fillStyle = "#8b949e";
     ctx.fillText("S/F", px(0) + 7, pz(0) + 3);
 
+    // chart-hover position mirrored onto the map
+    if (hoverPct != null) {
+      const hi = Math.min(Math.round((hoverPct / 100) * (x.length - 1)), x.length - 1);
+      ctx.fillStyle = "#ffffff";
+      ctx.beginPath();
+      ctx.arc(px(hi), pz(hi), 5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = "#0e1114";
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    }
+
     // corner labels from the insights engine (same distance grid as cmp)
     if (insights) {
       const step = cmp.dist.length > 1 ? cmp.dist[1] - cmp.dist[0] : 4;
@@ -92,7 +108,7 @@ export default function TrackMap({ cmp, insights }: { cmp: ComparePayload; insig
         ctx.fillText(label, cxp + (-nz / len) * 12, czp + (nx / len) * 12 + 3);
       }
     }
-  }, [cmp, insights]);
+  }, [cmp, insights, hoverPct]);
 
   return <canvas ref={ref} style={{ width: "100%", height: 300 }} />;
 }

@@ -218,12 +218,18 @@ export function SpeedChart({ cmp, markers, onHover }: { cmp: ComparePayload } & 
 
 export function PedalChart({ cmp, markers, onHover }: { cmp: ComparePayload } & ChartHoverProps) {
   const p100 = (a: number[]) => a.map((v) => v * 100);
+  // brake samples while ABS is engaged, null elsewhere — drawn as an
+  // amber overlay on top of the brake trace
+  const absMask = (brake: number[], abs?: number[]) =>
+    brake.map((v, i) => (abs && abs[i] > 0.5 ? v * 100 : null));
   const data: uPlot.AlignedData = [
     pct(cmp.dist),
     p100(cmp.lap.throttle),
     p100(cmp.ref.throttle),
     p100(cmp.lap.brake),
     p100(cmp.ref.brake),
+    absMask(cmp.lap.brake, cmp.lap.abs) as (number | null)[],
+    absMask(cmp.ref.brake, cmp.ref.abs) as (number | null)[],
   ];
   const ref = useUplot(
     (w) => {
@@ -233,6 +239,8 @@ export function PedalChart({ cmp, markers, onHover }: { cmp: ComparePayload } & 
       o.series.push({ stroke: "rgba(63,185,80,0.45)", width: 1.2, dash: [4, 4] });
       o.series.push({ stroke: "#f85149", width: 1.5 });
       o.series.push({ stroke: "rgba(248,81,73,0.45)", width: 1.2, dash: [4, 4] });
+      o.series.push({ stroke: "#ffb224", width: 2.4, spanGaps: false });
+      o.series.push({ stroke: "rgba(255,178,36,0.5)", width: 1.6, dash: [3, 3], spanGaps: false });
       return o;
     },
     data,

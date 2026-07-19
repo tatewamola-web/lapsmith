@@ -27,6 +27,7 @@ export interface ChannelSet {
   steering: number[];
   gear: number[];
   lap_time: number[];
+  abs?: number[];
 }
 
 export interface ComparePayload {
@@ -64,6 +65,7 @@ export interface LiveFrame {
   rpm: number;
   last_lap_time: number;
   best_lap_time: number;
+  abs_active?: number;
 }
 
 export interface SessionMeta {

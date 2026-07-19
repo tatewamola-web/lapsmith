@@ -43,6 +43,8 @@ class LMUAdapter(BaseAdapter):
         self._tele: Optional[MMapControl] = None
         self._scor: Optional[MMapControl] = None
         self._last_version = -1
+        # previous per-wheel brake pressures by slot id, for ABS detection
+        self._prev_bp: dict = {}
 
     # -- BaseAdapter --------------------------------------------------
 
@@ -104,6 +106,18 @@ class LMUAdapter(BaseAdapter):
         return self._build_frame(tele_v, scor_v)
 
     def _build_frame(self, tele_v, scor_v) -> TelemetryFrame:
+        # ABS detection: pedal held but wheel brake pressures fluttering —
+        # that flutter IS the ABS modulating.
+        brake_in = float(tele_v.mUnfilteredBrake)
+        bp = [float(tele_v.mWheels[i].mBrakePressure) for i in range(4)]
+        prev = self._prev_bp.get(int(tele_v.mID))
+        abs_active = 0.0
+        if prev is not None and brake_in > 0.5:
+            flutter = max(abs(bp[i] - prev[i]) for i in range(4))
+            if flutter > 0.08:
+                abs_active = 1.0
+        self._prev_bp[int(tele_v.mID)] = bp
+
         vel = tele_v.mLocalVel
         speed = math.sqrt(vel.x ** 2 + vel.y ** 2 + vel.z ** 2)
         lap_time = max(float(tele_v.mElapsedTime - tele_v.mLapStartET), 0.0)
@@ -136,6 +150,7 @@ class LMUAdapter(BaseAdapter):
             count_flag=int(scor_v.mCountLapFlag),
             path_lateral=float(scor_v.mPathLateral),
             track_edge=float(scor_v.mTrackEdge),
+            abs_active=abs_active,
         )
 
     def poll_all(self):

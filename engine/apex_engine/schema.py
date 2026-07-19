@@ -41,6 +41,7 @@ class TelemetryFrame:
     count_flag: int = 2
     path_lateral: float = 0.0   # lateral offset from track center path (m)
     track_edge: float = 6.0     # center path -> edge distance, car's side (m)
+    abs_active: float = 0.0     # 1.0 while ABS is modulating brake pressure
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -75,6 +76,7 @@ LAP_CHANNELS = (
     "pos_z",
     "path_lateral",
     "track_edge",
+    "abs_active",
 )
 
 

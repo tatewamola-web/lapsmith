@@ -77,6 +77,8 @@ def compare(lap: dict[str, np.ndarray], ref: dict[str, np.ndarray],
         "gear": [int(v) for v in np.round(ch["gear"])],
         # absolute time at each distance point — the playback clock
         "lap_time": round3(ch["lap_time"]),
+        # ABS engagement flag (older laps predate the channel: all zeros)
+        "abs": round3(ch["abs_active"]) if "abs_active" in ch else [0.0] * len(ch["speed"]),
     }
     result = {
         "dist": round3(grid),
@@ -366,7 +368,7 @@ def insights(lap: dict[str, np.ndarray], ref: dict[str, np.ndarray],
     }
 
 
-def coach(laps: list, track: str = "") -> Optional[dict]:
+def coach(laps: list, track: str = "", rival_laps: list = ()) -> Optional[dict]:
     """Personalized coaching: least-squares regression across YOUR laps.
 
     For every corner, each lap contributes features (braking point, minimum
@@ -401,6 +403,12 @@ def coach(laps: list, track: str = "") -> Optional[dict]:
             resampled.append(resample_lap(ch, grid))
         except (KeyError, ValueError):
             continue
+    resampled_rivals = []
+    for ch in rival_laps:
+        try:
+            resampled_rivals.append(resample_lap(ch, grid))
+        except (KeyError, ValueError):
+            continue
 
     def features(r, start, apex, end):
         zone = np.where(r["brake"][start:apex + 1] > 0.4)[0]
@@ -413,6 +421,7 @@ def coach(laps: list, track: str = "") -> Optional[dict]:
 
     FEATS = ("bp", "vmin", "ton")
     tips = []
+    opportunities = []
     for ci, apex in enumerate(apexes):
         prev_a = apexes[ci - 1] if ci > 0 else 0
         next_a = apexes[ci + 1] if ci + 1 < len(apexes) else n - 1
@@ -426,6 +435,40 @@ def coach(laps: list, track: str = "") -> Optional[dict]:
                 continue
             rows.append((bp, vmin, ton))
             times.append(ctime)
+
+        # Benchmark tier: your best traversal vs the fastest ever seen here
+        # (captured rival laps included) — this is where the BIG time hides.
+        if times:
+            your_best_i = int(np.argmin(times))
+            your_best_t = times[your_best_i]
+            best_rival = None
+            for r in resampled_rivals:
+                fb = features(r, start, apex, end)
+                if fb[0] is None or fb[2] is None or fb[3] <= 0:
+                    continue
+                if best_rival is None or fb[3] < best_rival[3]:
+                    best_rival = fb
+            if best_rival is not None and your_best_t - best_rival[3] >= 0.08:
+                gap = your_best_t - best_rival[3]
+                yb = rows[your_best_i]
+                parts = []
+                if abs(best_rival[0] - yb[0]) > 3:
+                    parts.append(f"brakes {abs(best_rival[0] - yb[0]):.0f}m "
+                                 f"{'later' if best_rival[0] > yb[0] else 'earlier'}")
+                if abs(best_rival[1] - yb[1]) > 0.7:
+                    d = (best_rival[1] - yb[1]) * 2.23694
+                    parts.append(f"carries {abs(d):.0f}mph {'more' if d > 0 else 'less'} minimum speed")
+                if abs(best_rival[2] - yb[2]) > 3:
+                    parts.append(f"back to throttle {abs(best_rival[2] - yb[2]):.0f}m "
+                                 f"{'sooner' if best_rival[2] < yb[2] else 'later'}")
+                opportunities.append({
+                    "corner": names[ci] or f"T{ci + 1}",
+                    "apex_pct": round(float(grid[apex]) / max_d * 100, 1),
+                    "message": ("the fastest driver here " + ", ".join(parts))
+                               if parts else "the fastest driver is quicker with a similar line — grip/timing difference",
+                    "gain": round(gap, 3),
+                })
+
         if len(rows) < 8:
             continue
 
@@ -467,7 +510,13 @@ def coach(laps: list, track: str = "") -> Optional[dict]:
             })
 
     tips.sort(key=lambda t: -t["gain"])
-    return {"laps_analyzed": len(resampled), "tips": tips[:6]}
+    opportunities.sort(key=lambda t: -t["gain"])
+    return {
+        "laps_analyzed": len(resampled),
+        "rivals_analyzed": len(resampled_rivals),
+        "tips": tips[:6],
+        "opportunities": opportunities[:5],
+    }
 
 
 def lap_channels_payload(channels: dict[str, np.ndarray]) -> dict:

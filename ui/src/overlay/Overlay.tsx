@@ -44,7 +44,7 @@ export default function Overlay() {
   const lastMsgAt = useRef(0);
   const [onTrack, setOnTrack] = useState(false);
   // my recent inputs by distance, cleared each new lap
-  const trail = useRef<{ d: number; thr: number; brk: number }[]>([]);
+  const trail = useRef<{ d: number; thr: number; brk: number; a: number }[]>([]);
   const lastLapNo = useRef(-1);
   const maxRpm = useRef(8000);
 
@@ -104,7 +104,10 @@ export default function Overlay() {
       lastLapNo.current = frame.lap_number;
       trail.current = [];
     }
-    trail.current.push({ d: frame.lap_dist, thr: frame.throttle, brk: frame.brake });
+    trail.current.push({
+      d: frame.lap_dist, thr: frame.throttle, brk: frame.brake,
+      a: frame.abs_active ?? 0,
+    });
     if (trail.current.length > TRAIL) trail.current.shift();
     if (frame.rpm > maxRpm.current) maxRpm.current = frame.rpm;
   }, [frame]);
@@ -147,6 +150,24 @@ export default function Overlay() {
       };
       drawRef(refLap.throttle, "rgba(46,160,67,0.6)");
       drawRef(refLap.brake, "rgba(218,54,51,0.65)");
+      // reference lap's ABS zones in dim amber over its brake trace
+      const refAbs = (refLap as unknown as { abs_active?: number[] }).abs_active;
+      if (refAbs) {
+        ctx.strokeStyle = "rgba(255,178,36,0.55)";
+        ctx.lineWidth = 2.2;
+        ctx.beginPath();
+        let pen = false;
+        for (let i = iA; i <= iB; i++) {
+          if (refAbs[i] > 0.5) {
+            const px = X(i * step);
+            pen ? ctx.lineTo(px, Y(refLap.brake[i])) : ctx.moveTo(px, Y(refLap.brake[i]));
+            pen = true;
+          } else {
+            pen = false;
+          }
+        }
+        ctx.stroke();
+      }
     }
 
     // my actual inputs up to the car (bright)
@@ -169,6 +190,22 @@ export default function Overlay() {
     };
     drawMine((p) => p.thr, "#3fb950");
     drawMine((p) => p.brk, "#f85149");
+    // your ABS zones: amber over the brake trace
+    ctx.strokeStyle = "#ffb224";
+    ctx.lineWidth = 2.8;
+    ctx.beginPath();
+    let pen = false;
+    for (const p of t) {
+      if (p.d < d0 || p.d > frame.lap_dist) continue;
+      if (p.a > 0.5) {
+        const px = X(p.d);
+        pen ? ctx.lineTo(px, Y(p.brk)) : ctx.moveTo(px, Y(p.brk));
+        pen = true;
+      } else {
+        pen = false;
+      }
+    }
+    ctx.stroke();
 
     // car position line
     ctx.strokeStyle = "rgba(232,234,237,0.8)";
@@ -231,7 +268,15 @@ export default function Overlay() {
         {toggles.inputs && (
           <div className="pbars">
             <div className="pbar"><div className="pfill throttle" style={{ height: `${(frame?.throttle ?? 0) * 100}%` }} /></div>
-            <div className="pbar"><div className="pfill brake" style={{ height: `${(frame?.brake ?? 0) * 100}%` }} /></div>
+            <div className="pbar">
+              <div
+                className="pfill brake"
+                style={{
+                  height: `${(frame?.brake ?? 0) * 100}%`,
+                  background: (frame?.abs_active ?? 0) > 0.5 ? "#ffb224" : undefined,
+                }}
+              />
+            </div>
           </div>
         )}
         {toggles.gear && (

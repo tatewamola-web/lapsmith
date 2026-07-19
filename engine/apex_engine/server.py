@@ -309,19 +309,23 @@ def create_app(adapter_name: str = "sim", data_dir: Path = Path("data")) -> Fast
     @app.get("/api/coach")
     def coach_endpoint(track: str, car_class: str = "", car: str = ""):
         """Regression coach over up to 40 of your valid laps for a combo."""
-        metas = [
+        all_metas = [
             m for m in engine.store.list_laps(track=track)
-            if m["valid"] and m["has_data"] and m["source"] != "opponent"
+            if m["valid"] and m["has_data"]
             and (m["car_class"] == car_class if car_class else m["car"] == car)
-        ][:40]
-        channels = []
-        for m in metas:
+        ]
+        channels, rivals = [], []
+        for m in all_metas:
+            if m["source"] != "opponent" and len(channels) >= 40:
+                continue
             ch = engine.store.load_channels(m["id"])
-            if ch is not None:
-                channels.append(ch)
-        result = analysis.coach(channels, track=track)
+            if ch is None:
+                continue
+            (rivals if m["source"] == "opponent" else channels).append(ch)
+        result = analysis.coach(channels, track=track, rival_laps=rivals)
         if result is None:
-            return {"laps_analyzed": len(channels), "tips": [],
+            return {"laps_analyzed": len(channels), "rivals_analyzed": len(rivals),
+                    "tips": [], "opportunities": [],
                     "note": "need at least 8 valid laps with telemetry on this combo"}
         return result
 

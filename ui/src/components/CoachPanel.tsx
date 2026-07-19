@@ -15,7 +15,9 @@ interface Tip {
 
 interface CoachResult {
   laps_analyzed: number;
+  rivals_analyzed?: number;
   tips: Tip[];
+  opportunities?: Tip[];
   note?: string;
 }
 
@@ -42,7 +44,25 @@ export default function CoachPanel({ meta }: { meta: LapMeta }) {
 
   return (
     <div className="panel">
-      <h3>Coach · learned from {result.laps_analyzed} of your laps</h3>
+      <h3>
+        Coach · {result.laps_analyzed} of your laps
+        {result.rivals_analyzed ? ` · ${result.rivals_analyzed} rival laps` : ""}
+      </h3>
+      {(result.opportunities?.length ?? 0) > 0 && (
+        <>
+          <div className="coach-section">Biggest opportunities — vs the fastest driving seen here</div>
+          <ol className="coach-list">
+            {result.opportunities!.map((t, i) => (
+              <li key={`o${i}`}>
+                <b>{t.corner}</b> <span className="dim">@{t.apex_pct.toFixed(0)}%</span>{" "}
+                — {t.message}
+                <span className="coach-gain">≈ {t.gain.toFixed(2)}s</span>
+              </li>
+            ))}
+          </ol>
+          <div className="coach-section">Habit fixes — from your own lap-to-lap variation</div>
+        </>
+      )}
       {result.tips.length === 0 ? (
         <div className="hint">
           {result.note ??

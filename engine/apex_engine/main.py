@@ -24,11 +24,19 @@ def main():
                         help="sim adapter only: driver skill 0..1")
     args = parser.parse_args()
 
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s %(levelname)-7s %(name)s: %(message)s",
-        datefmt="%H:%M:%S",
-    )
+    fmt = logging.Formatter(
+        "%(asctime)s %(levelname)-7s %(name)s: %(message)s", datefmt="%H:%M:%S")
+    logging.basicConfig(level=logging.INFO)
+    root_logger = logging.getLogger()
+    for h in root_logger.handlers:
+        h.setFormatter(fmt)
+    # The engine keeps its own log regardless of how it was launched, so a
+    # dead engine always leaves evidence.
+    log_dir = Path(args.data_dir)
+    log_dir.mkdir(parents=True, exist_ok=True)
+    fh = logging.FileHandler(log_dir / "engine.log", encoding="utf-8")
+    fh.setFormatter(fmt)
+    root_logger.addHandler(fh)
 
     if args.timescale is not None:
         os.environ["APEX_SIM_TIMESCALE"] = str(args.timescale)

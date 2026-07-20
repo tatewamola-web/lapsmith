@@ -20,7 +20,8 @@ if (-not $up) {
     # PYTHONPATH, so any working CPython 3.12 can run the engine.
     $env:PYTHONPATH = "$root\engine;$root\engine\.venv\Lib\site-packages"
     New-Item -ItemType Directory -Force -Path "$root\data" | Out-Null
-    $log = "$root\data\engine.log"
+    # interpreter-level failures land here; the engine's own log is engine.log
+    $log = "$root\data\engine.out.log"
     $errlog = "$root\data\engine.err.log"
 
     # Candidates: the venv python, then every uv-managed 3.12 (uv upgrades

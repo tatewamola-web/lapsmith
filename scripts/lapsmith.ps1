@@ -24,9 +24,14 @@ if (-not $up) {
     $log = "$root\data\engine.out.log"
     $errlog = "$root\data\engine.err.log"
 
-    # Candidates: the venv python, then every uv-managed 3.12 (uv upgrades
-    # relocate these dirs, which silently breaks the venv's pointer).
-    $candidates = @(Join-Path $root "engine\.venv\Scripts\python.exe")
+    # Candidates: the venv python (built on the signed python.org 3.12),
+    # the official interpreter itself, then any uv-managed 3.12 as a last
+    # resort (uv reshuffles those dirs, so they rank last).
+    $candidates = @(
+        (Join-Path $root "engine\.venv\Scripts\python.exe"),
+        "$env:LOCALAPPDATA\Programs\Python\Python312\python.exe",
+        "C:\Program Files\Python312\python.exe"
+    )
     $candidates += Get-ChildItem "$env:APPDATA\uv\python\cpython-3.12*\python.exe" -ErrorAction SilentlyContinue |
         Sort-Object FullName -Descending | Select-Object -ExpandProperty FullName
 

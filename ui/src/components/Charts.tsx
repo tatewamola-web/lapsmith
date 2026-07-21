@@ -114,6 +114,65 @@ function wheelZoomPlugin(): uPlot.Plugin {
   };
 }
 
+/** Value tags pinned to the crosshair: a colored chip per series showing
+ * its value at the cursor, stacked so they never overlap. */
+interface TagCfg {
+  si: number;
+  color: string;
+  fmt: (v: number) => string;
+}
+
+function valueTagsPlugin(cfgs: TagCfg[]): uPlot.Plugin {
+  let tags: HTMLDivElement[] = [];
+  return {
+    hooks: {
+      init: (u) => {
+        tags = cfgs.map((c) => {
+          const el = document.createElement("div");
+          el.className = "u-tag";
+          el.style.background = c.color;
+          el.style.display = "none";
+          u.over.appendChild(el);
+          return el;
+        });
+      },
+      setCursor: (u) => {
+        const { idx } = u.cursor;
+        if (idx == null) {
+          tags.forEach((t) => (t.style.display = "none"));
+          return;
+        }
+        const x = u.valToPos(u.data[0][idx] as number, "x");
+        const placed: { el: HTMLDivElement; top: number }[] = [];
+        cfgs.forEach((c, i) => {
+          const v = u.data[c.si]?.[idx];
+          const el = tags[i];
+          if (v == null || !isFinite(v as number)) {
+            el.style.display = "none";
+            return;
+          }
+          el.textContent = c.fmt(v as number);
+          el.style.display = "block";
+          placed.push({ el, top: u.valToPos(v as number, "y") });
+        });
+        // stack: sort by natural y, then push down to keep 18px separation
+        placed.sort((a, b) => a.top - b.top);
+        let last = -Infinity;
+        for (const p of placed) {
+          let top = Math.max(p.top, last + 18);
+          top = Math.min(Math.max(top, 8), u.over.clientHeight - 8);
+          p.el.style.left = `${x + 8}px`;
+          p.el.style.top = `${top}px`;
+          last = top;
+        }
+      },
+    },
+  };
+}
+
+const MPH_FMT = (v: number) => `${v.toFixed(1)} mph`;
+const PCT_FMT = (v: number) => `${v.toFixed(0)}%`;
+
 /** Report the hovered %-of-lap to the app so maps can follow the cursor. */
 function hoverPlugin(onHover?: (pct: number | null) => void): uPlot.Plugin {
   return {
@@ -175,7 +234,8 @@ export function DeltaChart({ cmp, markers, onHover }: { cmp: ComparePayload } & 
   const ref = useUplot(
     (w) => {
       const o = baseOpts(w, 150, "delta s");
-      o.plugins = [wheelZoomPlugin(), markersPlugin(markers), hoverPlugin(onHover)];
+      o.plugins = [wheelZoomPlugin(), markersPlugin(markers), hoverPlugin(onHover),
+        valueTagsPlugin([{ si: 1, color: "#e8eaed", fmt: (v) => `${v >= 0 ? "+" : ""}${v.toFixed(3)}s` }])];
       o.series.push({
         stroke: "#e8eaed",
         width: 1.5,
@@ -205,7 +265,11 @@ export function SpeedChart({ cmp, markers, onHover }: { cmp: ComparePayload } & 
   const ref = useUplot(
     (w) => {
       const o = baseOpts(w, 200, "mph");
-      o.plugins = [wheelZoomPlugin(), markersPlugin(markers), hoverPlugin(onHover)];
+      o.plugins = [wheelZoomPlugin(), markersPlugin(markers), hoverPlugin(onHover),
+        valueTagsPlugin([
+          { si: 1, color: "#4dd0e1", fmt: MPH_FMT },
+          { si: 2, color: "#ff8a3d", fmt: MPH_FMT },
+        ])];
       o.series.push({ stroke: "#4dd0e1", width: 1.5 });
       o.series.push({ stroke: "#ff8a3d", width: 1.5 });
       return o;
@@ -234,7 +298,13 @@ export function PedalChart({ cmp, markers, onHover }: { cmp: ComparePayload } & 
   const ref = useUplot(
     (w) => {
       const o = baseOpts(w, 150, "%");
-      o.plugins = [wheelZoomPlugin(), markersPlugin(markers), hoverPlugin(onHover)];
+      o.plugins = [wheelZoomPlugin(), markersPlugin(markers), hoverPlugin(onHover),
+        valueTagsPlugin([
+          { si: 1, color: "#3fb950", fmt: PCT_FMT },
+          { si: 2, color: "rgba(63,185,80,0.75)", fmt: PCT_FMT },
+          { si: 3, color: "#f85149", fmt: PCT_FMT },
+          { si: 4, color: "rgba(248,81,73,0.75)", fmt: PCT_FMT },
+        ])];
       o.series.push({ stroke: "#3fb950", width: 1.5 });
       o.series.push({ stroke: "rgba(63,185,80,0.45)", width: 1.2, dash: [4, 4] });
       o.series.push({ stroke: "#f85149", width: 1.5 });
@@ -254,7 +324,11 @@ export function GearChart({ cmp, markers, onHover }: { cmp: ComparePayload } & C
   const ref = useUplot(
     (w) => {
       const o = baseOpts(w, 110, "gear");
-      o.plugins = [wheelZoomPlugin(), markersPlugin(markers), hoverPlugin(onHover)];
+      o.plugins = [wheelZoomPlugin(), markersPlugin(markers), hoverPlugin(onHover),
+        valueTagsPlugin([
+          { si: 1, color: "#4dd0e1", fmt: (v) => `G${Math.round(v)}` },
+          { si: 2, color: "#ff8a3d", fmt: (v) => `G${Math.round(v)}` },
+        ])];
       const stepped = uPlot.paths.stepped ? uPlot.paths.stepped({ align: 1 }) : undefined;
       o.series.push({ stroke: "#4dd0e1", width: 1.6, paths: stepped });
       o.series.push({ stroke: "#ff8a3d", width: 1.3, dash: [4, 4], paths: stepped });
@@ -271,7 +345,11 @@ export function SteeringChart({ cmp, markers, onHover }: { cmp: ComparePayload }
   const ref = useUplot(
     (w) => {
       const o = baseOpts(w, 110, "steer");
-      o.plugins = [wheelZoomPlugin(), markersPlugin(markers), hoverPlugin(onHover)];
+      o.plugins = [wheelZoomPlugin(), markersPlugin(markers), hoverPlugin(onHover),
+        valueTagsPlugin([
+          { si: 1, color: "#4dd0e1", fmt: (v) => v.toFixed(2) },
+          { si: 2, color: "#ff8a3d", fmt: (v) => v.toFixed(2) },
+        ])];
       o.series.push({ stroke: "#4dd0e1", width: 1.2 });
       o.series.push({ stroke: "#ff8a3d", width: 1.2 });
       return o;

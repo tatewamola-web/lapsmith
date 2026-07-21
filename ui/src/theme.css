@@ -382,6 +382,22 @@ html, body, #root {
 .uplot { font-family: var(--mono) !important; }
 .u-legend { display: none; }
 
+/* crosshair value chips */
+.u-tag {
+  position: absolute;
+  transform: translateY(-50%);
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 700;
+  color: #0b0d10;
+  padding: 1px 6px;
+  border-radius: 3px;
+  pointer-events: none;
+  white-space: nowrap;
+  z-index: 12;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+}
+
 /* -- live view --------------------------------------------------------------- */
 
 .live-grid {

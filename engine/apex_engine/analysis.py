@@ -488,11 +488,39 @@ def coach(laps: list, track: str = "", rival_laps: list = ()) -> Optional[dict]:
 
         best = np.array(rows)[0] if keep[0] else X[np.argmin(y)]
         med = np.median(X, axis=0)
+
+        # Gradient boosting (when available and enough laps): fit corner
+        # time as a non-linear function of the features, then measure each
+        # feature's effect counterfactually — predict at your median habits,
+        # change ONE feature to your best lap's value, predict again; the
+        # difference is that habit's worth including interactions the
+        # linear fit can't see. Falls back to the OLS slope otherwise.
+        gbr = None
+        if len(y) >= 12:
+            try:
+                from sklearn.ensemble import GradientBoostingRegressor
+                gbr = GradientBoostingRegressor(
+                    n_estimators=120, max_depth=2, learning_rate=0.08,
+                    subsample=0.9, random_state=0).fit(X, y)
+            except ImportError:
+                gbr = None
+
+        def feature_gain(fi: int) -> float:
+            if gbr is not None:
+                base = med.copy()
+                moved = med.copy()
+                moved[fi] = best[fi]
+                return float(gbr.predict([base])[0] - gbr.predict([moved])[0])
+            return float(coefs[fi] * (med[fi] - best[fi]))
+
         for fi, feat in enumerate(FEATS):
-            gain = float(coefs[fi] * (med[fi] - best[fi]))
+            gain = feature_gain(fi)
             if gain < 0.03:
                 continue
             delta = abs(med[fi] - best[fi])
+            # skip tips whose displayed magnitude rounds to nothing
+            if (feat == "vmin" and delta * 2.23694 < 1.0) or (feat != "vmin" and delta < 1.5):
+                continue
             if feat == "bp":
                 direction = "later" if best[fi] > med[fi] else "earlier"
                 msg = f"brake ~{delta:.0f}m {direction}"
@@ -511,9 +539,15 @@ def coach(laps: list, track: str = "", rival_laps: list = ()) -> Optional[dict]:
 
     tips.sort(key=lambda t: -t["gain"])
     opportunities.sort(key=lambda t: -t["gain"])
+    try:
+        import sklearn  # noqa: F401
+        model = "gradient boosting (sklearn) with counterfactual gains"
+    except ImportError:
+        model = "linear least squares (numpy)"
     return {
         "laps_analyzed": len(resampled),
         "rivals_analyzed": len(resampled_rivals),
+        "model": model,
         "tips": tips[:6],
         "opportunities": opportunities[:5],
     }

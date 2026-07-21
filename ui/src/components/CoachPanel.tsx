@@ -16,6 +16,7 @@ interface Tip {
 interface CoachResult {
   laps_analyzed: number;
   rivals_analyzed?: number;
+  model?: string;
   tips: Tip[];
   opportunities?: Tip[];
   note?: string;
@@ -81,9 +82,9 @@ export default function CoachPanel({ meta }: { meta: LapMeta }) {
         </ol>
       )}
       <div className="hint">
-        least-squares fit of corner time vs braking point, min speed, and
-        throttle point across your own laps — gains estimate moving your
-        median habit to your demonstrated best
+        {result.model ?? "regression"} · corner time vs braking point, min
+        speed, throttle point across your own laps — gains estimate moving
+        your median habit to your demonstrated best
       </div>
     </div>
   );

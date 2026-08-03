@@ -245,28 +245,6 @@ export default function AnalysisView({
 
             <div className="grid-2col">
               <div>
-                {hoverPct != null && (() => {
-                  const i = Math.min(
-                    Math.round((hoverPct / 100) * (cmp.dist.length - 1)),
-                    cmp.dist.length - 1
-                  );
-                  return (
-                    <div className="hover-readout">
-                      <span className="dim">{hoverPct.toFixed(1)}% · {(cmp.dist[i] / 1000).toFixed(2)}km</span>
-                      <span style={{ color: "var(--you)" }}>
-                        A {Math.round(cmp.lap.speed[i] * 2.23694)}mph · G{cmp.lap.gear[i]} ·
-                        T{Math.round(cmp.lap.throttle[i] * 100)}% B{Math.round(cmp.lap.brake[i] * 100)}%
-                      </span>
-                      <span style={{ color: "var(--ref)" }}>
-                        R {Math.round(cmp.ref.speed[i] * 2.23694)}mph · G{cmp.ref.gear[i]} ·
-                        T{Math.round(cmp.ref.throttle[i] * 100)}% B{Math.round(cmp.ref.brake[i] * 100)}%
-                      </span>
-                      <span className={cmp.delta[i] >= 0 ? "loss" : "gain"}>
-                        {cmp.delta[i] >= 0 ? "+" : ""}{cmp.delta[i].toFixed(3)}s
-                      </span>
-                    </div>
-                  );
-                })()}
                 <Panel id="delta" title="Time Delta">
                   <DeltaChart cmp={cmp} markers={markers} onHover={setHoverPct} />
                 </Panel>

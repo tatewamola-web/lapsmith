@@ -112,6 +112,11 @@ class Engine:
     def _on_opponent_lap(self, lap, driver: str):
         if not lap.valid:
             return
+        # The opponent's recorder context was built when the car first
+        # appeared, which can predate knowing the session's class. Stamp the
+        # current class so rival laps always group with yours.
+        if not lap.context.car_class and self.session.car_class:
+            lap.context.car_class = self.session.car_class
         # Save, then enforce the invariant in SQL: fastest opponent lap per
         # session + fastest overall per combo survive, everything else goes.
         # (In-memory replacement logic had ordering bugs with online fields

@@ -164,10 +164,20 @@ def corner_names_for(track: str) -> list[tuple[float, str]]:
 
 def assign_names(track: str, apex_pcts: list[float]) -> list[str]:
     """One name per anchor, each claiming only its nearest detected corner —
-    so a chicane split into elements doesn't get the same name three times."""
+    so a chicane split into elements doesn't get the same name three times.
+
+    Self-calibrating: when the detected corner count matches the name list
+    exactly, names map in order and the anchor percentages don't matter at
+    all — so a track named from a rough map corrects itself the first time
+    you drive it. Otherwise anchors fall back to nearest-within-tolerance.
+    """
+    anchors = corner_names_for(track)
+    if anchors and len(anchors) == len(apex_pcts):
+        return [name for _, name in anchors]
+
     names = [""] * len(apex_pcts)
     taken: set[int] = set()
-    for pct, name in corner_names_for(track):
+    for pct, name in anchors:
         best_i, best_d = -1, MATCH_TOLERANCE
         for i, apex in enumerate(apex_pcts):
             if i in taken:

@@ -52,8 +52,8 @@ export default function App() {
         // default the combo filter to what's being driven (or latest lap)
         setCombo((cur) => {
           if (cur) return cur;
-          if (s.session?.track) return `${s.session.track}|${s.session.car_class || s.session.car}`;
-          if (l.length > 0) return `${l[0].track}|${l[0].car_class || l[0].car}`;
+          if (s.session?.track) return `${s.session.track}|${s.session.car_class || "Other"}`;
+          if (l.length > 0) return `${l[0].track}|${l[0].car_class || "Other"}`;
           return cur;
         });
         if (!autoPicked.current && l.length > 0) {
@@ -127,19 +127,19 @@ export default function App() {
 
   const session = status?.session;
 
-  // distinct track+class combos across the library, most recent first —
-  // PBs and comparisons group by class (Hyper vs GT3), not individual car
-  const comboKey = (l: LapMeta) => `${l.track}|${l.car_class || l.car}`;
+  // One entry per track + class. Laps whose class is unknown share a
+  // single "Other" bucket instead of spawning an entry per car.
+  const comboKey = (l: LapMeta) => `${l.track}|${l.car_class || "Other"}`;
   const combos: { key: string; label: string }[] = [];
   const seen = new Set<string>();
   for (const l of laps) {
     const key = comboKey(l);
     if (!seen.has(key)) {
       seen.add(key);
-      const cls = l.car_class || (l.car.length > 24 ? l.car.slice(0, 22) + "…" : l.car);
-      combos.push({ key, label: `${l.track} · ${cls}` });
+      combos.push({ key, label: `${l.track} · ${l.car_class || "Other"}` });
     }
   }
+  combos.sort((a, b) => a.label.localeCompare(b.label));
   const filteredLaps =
     sessionFilter != null || combo === "all" || !combo
       ? laps

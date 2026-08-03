@@ -16,15 +16,26 @@ Most drivers know *that* they're slow somewhere. Telemetry tools show you
 
 ## Features
 
-- **Corner-by-corner coaching** — corners detected automatically from the
+- **A coach that learns from your driving** — gradient boosting (scikit-learn)
+  fits corner time against your braking point, minimum speed, and throttle
+  application across every lap you've driven, then measures each habit
+  counterfactually: *"T1 — carry 1mph more minimum speed ≈ 0.12s."* A second
+  tier benchmarks your best corner against the fastest driving ever recorded
+  there, captured rival laps included
+- **Corner-by-corner analysis** — corners detected automatically from the
   geometry of your driven line, matched to their real names, each scored
   with time lost/gained, braking point, apex speed, and throttle comparison
+- **ABS detection** — wheel-pressure flutter reveals when the anti-lock is
+  working; those moments glow amber on the brake trace, in the app and the
+  overlay
 - **Ghost playback** — two laps replay on a shared clock around the track
   map; scrub, slow-mo, and watch exactly where the reference pulls away
 - **Racing line comparison** — both driven lines overlaid inside the real
   track corridor, zoomable per corner
 - **Time-delta analysis** — the classic delta curve plus speed / pedals /
-  steering traces on a synced distance axis with sector and corner markers
+  gear / steering traces on a synced distance axis with sector and corner
+  markers, value chips riding the crosshair, and both maps tracking your
+  cursor; every section folds away and remembers it
 - **Full lap history** — imports your past lap and sector times straight
   from the game's own session logs, back to your first drive
 - **Personal bests & the ideal lap** — PBs tracked per track + car, plus a
@@ -76,8 +87,15 @@ Details in [docs/SETUP_LMU.md](docs/SETUP_LMU.md).
 
 Laps are compared **by track position, not by time**, so corners line up
 between any two laps — the same principle professional motorsport telemetry
-uses. The full build story, including every bug reality threw at us, lives
-in [DEVLOG.md](DEVLOG.md).
+uses. SQLite stores the facts (one row per lap: times, sectors, car, class,
+validity) because facts want to be queried; NumPy holds the waveforms
+(~5,000 samples × 13 channels per lap) because signals want to be
+transformed. The full build story, including every bug reality threw at us,
+lives in [DEVLOG.md](DEVLOG.md).
+
+Track corner names self-calibrate: a track seeded from a public map corrects
+itself the first time you drive it, whenever detection finds exactly as many
+corners as the name list holds.
 
 ## In-game overlay
 

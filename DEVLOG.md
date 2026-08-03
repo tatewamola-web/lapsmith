@@ -361,6 +361,54 @@ failures leave evidence.**
 
 ---
 
+## 2026-07-19 → 07-24 — Week 3: The coach gets smart, the plumbing gets fixed
+
+### Two mysteries closed at once
+Engines kept dying hours after they started. The cause turned out to be the
+development harness, not the app: processes spawned inside a tool session
+are reaped when that session is torn down — so *my* restarts died while the
+user's double-clicks never did, which is exactly why it looked unreproducible
+for a week. Separately, the uv-managed Python interpreter got relocated
+twice and blocked once by Windows App Control, leaving the venv pointing at
+nothing. Fixes: the engine is launched out-of-tree via WMI, the venv was
+rebuilt on the signed python.org 3.12, the launcher *proves* a candidate
+interpreter can import the engine before trusting it, and the engine writes
+its own log so a death always leaves evidence.
+**Lesson: when a bug won't reproduce for you but does for the user, suspect
+your environment, not their description.**
+
+### ABS detection without an ABS channel
+The sim never publishes "ABS engaged" — but it publishes per-wheel brake
+pressure, and ABS *is* pressure fluttering while the pedal is held. Detect
+the flutter, get the flag. Those samples render amber over the brake trace
+in both the app and the overlay.
+**Lesson: the signal you want is often a derivative of a signal you have.**
+
+### Coach v3: gradient boosting with counterfactual gains
+The linear coach could only ever say "do what your best lap did", and for a
+consistent driver those gains are tiny. Two upgrades: a **benchmark tier**
+comparing your best corner against the fastest traversal ever recorded there
+(captured rival laps included — so racing quicker people literally improves
+your coaching), and **scikit-learn gradient boosting** replacing least
+squares. Trees capture interactions a line can't, and the per-habit value is
+read out counterfactually: predict corner time at your median habits, change
+one feature to your best-lap value, predict again — the difference is what
+that habit is worth. On real data it re-ranked the top recommendation and
+valued it 30% higher than the linear estimate.
+**Lesson: a fitted model is a question-answering machine; asking it
+counterfactuals is how you make a black box explain itself.**
+
+### Interface maturity
+Crosshair value chips on every chart, both maps following the cursor, a gear
+trace, collapsible panels that remember their state, and the analysis
+sidebar grouping strictly by class (rival laps were arriving without a class
+and fragmenting the list into one entry per car — fixed at the source and
+backfilled). Corner-name anchors now self-calibrate: when detection finds
+exactly as many corners as a track's name list holds, the names map in order
+and rough map-derived percentages stop mattering.
+
+---
+
 ## Design principles that emerged (running list)
 
 1. **Wall off what varies.** One adapter per sim; everything else is shared.

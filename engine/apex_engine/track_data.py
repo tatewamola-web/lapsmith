@@ -112,6 +112,36 @@ CORNER_DB: dict[str, list[tuple[float, str]]] = {
         (70.0, "T13"),
         (85.0, "T14-15"),
     ],
+    # Laguna Seca: 11 turns, 3.602 km. Anchors from the public track map —
+    # the famous ones (Andretti Hairpin, Corkscrew, Rainey Curve) are the
+    # confident ones; drive it once and these can be calibrated exactly.
+    "laguna": [
+        (7.0, "T1"),
+        (13.0, "T2 Andretti Hairpin"),
+        (24.0, "T3"),
+        (30.0, "T4"),
+        (38.0, "T5"),
+        (48.0, "T6"),
+        (57.0, "T7"),
+        (66.0, "T8 Corkscrew"),
+        (76.0, "T9 Rainey Curve"),
+        (85.0, "T10"),
+        (93.0, "T11"),
+    ],
+    # Daytona road course: 5.73 km. Infield first, then the Bus Stop on the
+    # back straight, then the banking. Anchors are rougher than Laguna's —
+    # the banked sections make distance-percentage estimates less certain.
+    "daytona": [
+        (9.0, "T1"),
+        (14.0, "T2"),
+        (20.0, "T3 Horseshoe"),
+        (26.0, "T4"),
+        (32.0, "T5 International Horseshoe"),
+        (39.0, "T6 Kink"),
+        (46.0, "T7"),
+        (62.0, "Bus Stop"),
+        (80.0, "NASCAR Banking"),
+    ],
     "circuit of the americas": [
         (7.0, "T1"),
         (15.0, "T2-6 Esses"),

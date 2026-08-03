@@ -14,6 +14,27 @@ export function officialLabel(name: string, n: number): string {
   return name ? name.split(" ")[0] : `T${n}`;
 }
 
+/** Collapsible panel — click the heading to fold it away. Each panel
+ * remembers its state, so the layout stays how you left it. */
+function Panel({ id, title, children }: { id: string; title: string; children: React.ReactNode }) {
+  const [open, setOpen] = useState(() => localStorage.getItem(`panel-${id}`) !== "0");
+  const toggle = () => {
+    setOpen((o) => {
+      localStorage.setItem(`panel-${id}`, o ? "0" : "1");
+      return !o;
+    });
+  };
+  return (
+    <div className="panel">
+      <h3 className="panel-head" onClick={toggle}>
+        <span className={`panel-chev ${open ? "open" : ""}`}>▶</span>
+        {title}
+      </h3>
+      {open && children}
+    </div>
+  );
+}
+
 interface Props {
   laps: LapMeta[];
   youId: number | null;
@@ -246,41 +267,33 @@ export default function AnalysisView({
                     </div>
                   );
                 })()}
-                <div className="panel">
-                  <h3>Time Delta</h3>
+                <Panel id="delta" title="Time Delta">
                   <DeltaChart cmp={cmp} markers={markers} onHover={setHoverPct} />
-                </div>
-                <div className="panel">
-                  <h3>Speed</h3>
+                </Panel>
+                <Panel id="speed" title="Speed">
                   <SpeedChart cmp={cmp} markers={markers} onHover={setHoverPct} />
-                </div>
-                <div className="panel">
-                  <h3>Throttle / Brake</h3>
+                </Panel>
+                <Panel id="pedals" title="Throttle / Brake">
                   <PedalChart cmp={cmp} markers={markers} onHover={setHoverPct} />
-                </div>
-                <div className="panel">
-                  <h3>Gear</h3>
+                </Panel>
+                <Panel id="gear" title="Gear">
                   <GearChart cmp={cmp} markers={markers} onHover={setHoverPct} />
-                </div>
-                <div className="panel">
-                  <h3>Steering</h3>
+                </Panel>
+                <Panel id="steering" title="Steering">
                   <SteeringChart cmp={cmp} markers={markers} onHover={setHoverPct} />
-                </div>
+                </Panel>
                 {insights && insights.corners.length > 0 && <CornerPanel ins={insights} />}
                 <CoachPanel meta={cmp.lap_meta} />
               </div>
               <div>
-                <div className="panel">
-                  <h3>Track · time gain/loss</h3>
+                <Panel id="map" title="Track · time gain/loss">
                   <TrackMap cmp={cmp} insights={insights} hoverPct={hoverPct} />
-                </div>
-                <div className="panel">
-                  <h3>Racing Line · A vs R</h3>
+                </Panel>
+                <Panel id="line" title="Racing Line · A vs R">
                   <RacingLine cmp={cmp} insights={insights} hoverPct={hoverPct} />
-                </div>
+                </Panel>
                 {ideal && <IdealPanel ideal={ideal} />}
-                <div className="panel">
-                  <h3>Legend</h3>
+                <Panel id="legend" title="Legend">
                   <div style={{ fontSize: 12.5, color: "var(--text-dim)", lineHeight: 1.9 }}>
                     <div><span style={{ color: "var(--you)" }}>━</span> solid = your lap (A)</div>
                     <div><span style={{ color: "var(--ref)" }}>┅</span> dashed = reference lap (R)</div>
@@ -288,8 +301,11 @@ export default function AnalysisView({
                     <div><span style={{ color: "var(--gain)" }}>━</span> gaining time / throttle</div>
                     <div><span style={{ color: "var(--pb)" }}>●</span> corner markers (T-numbers)</div>
                   </div>
-                  <div className="hint">charts: scroll to zoom · drag to box-zoom · double-click resets</div>
-                </div>
+                  <div className="hint">
+                    charts: scroll to zoom · drag to box-zoom · double-click resets ·
+                    click any section heading to fold it away
+                  </div>
+                </Panel>
               </div>
             </div>
           </>

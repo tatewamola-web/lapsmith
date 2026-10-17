@@ -99,18 +99,24 @@ corners as the name list holds.
 
 ## In-game widgets
 
-Open the **Widgets** tab in the app to launch and configure them. Each widget
-is its own transparent always-on-top window over the game (set the game to
-borderless-windowed): drag anywhere, resize from a corner to scale, and it
-remembers where you left it. Settings changed in the app reach open widgets
-within a few seconds.
+Open the **Widgets** tab in the app: each widget has an on/off switch and its
+settings in one place. Each widget is its own transparent always-on-top
+window over the game (set the game to borderless-windowed): drag anywhere,
+resize from a corner to scale, and it remembers where you left it. Settings
+changed in the hub reach open widgets within a few seconds; switching one
+off closes it.
 
+- **Corner Callouts** — one short instruction per corner as you approach it,
+  e.g. *"T1 · Brake slightly later, throttle sooner"*, distilled from the
+  coach (your own habits + the fastest driving recorded at that track).
+  Adjustable lead distance.
 - **Delta Bar** — iRacing-style live gap to your reference lap. The bar fills
   green (ahead) or red (behind) from the center; the number turns green while
   you're gaining *right now*. Adjustable range, bar/number toggles.
 - **Input Trace** — rolling throttle/brake trace against the reference lap
   with your live inputs on top (ABS moments glow amber), pedal bars, gear
-  with a rev ring, lap times; stacked or horizontal layout.
+  with a rev ring, lap times; stacked or horizontal layout, every panel
+  toggleable from the hub.
 
 Both can compare against the fastest lap in your library (captured rivals
 included) or strictly your own PB. Ctrl+Alt+O = click-through, Ctrl+Alt+H =

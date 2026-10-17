@@ -182,3 +182,22 @@ html, body, #root { margin: 0; height: 100%; background: transparent; overflow: 
 
 /* a hidden widget must not keep a drag region over the game */
 .dw.faded, .dw.faded .dw-grip { pointer-events: none; -webkit-app-region: no-drag; }
+
+/* -- corner callout widget ----------------------------------------------- */
+.cw { height: 100%; display: flex; align-items: center; justify-content: center; position: relative; }
+.cw-grip { position: absolute; inset: 0; -webkit-app-region: drag; cursor: move; }
+.cw:not(.show) .cw-grip { -webkit-app-region: no-drag; pointer-events: none; }
+.cw-chip {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 14px;
+  background: rgba(10, 12, 15, 0.82);
+  border: 1px solid rgba(212, 160, 23, 0.45);
+  border-radius: 6px;
+  white-space: nowrap;
+  animation: cw-in 0.18s ease-out;
+}
+.cw-corner { color: #d4a017; font-weight: 700; font-size: 15px; }
+.cw-text { color: #e8eaed; font-size: 14px; font-weight: 600; }
+@keyframes cw-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }

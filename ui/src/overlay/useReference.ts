@@ -70,12 +70,47 @@ export function refTimeAt(ref: LapChannels, dist: number): number | null {
 }
 
 /** Widget settings stored in the engine (shared by web UI and widgets). */
+export interface TelemetrySettings {
+  enabled?: boolean;
+  ref: RefMode;
+  trace: boolean;
+  inputs: boolean;
+  gear: boolean;
+  times: boolean;
+  horizontal: boolean;
+  autohide: boolean;
+}
+export interface DeltaSettings {
+  enabled?: boolean;
+  range: number;
+  ref: RefMode;
+  showBar: boolean;
+  showNumber: boolean;
+}
+export interface CalloutSettings {
+  enabled?: boolean;
+  lead: number; // meters before the apex the callout appears
+}
 export interface WidgetSettings {
-  delta?: { range: number; ref: RefMode; showBar: boolean; showNumber: boolean };
-  telemetry?: { ref: RefMode };
+  delta?: Partial<DeltaSettings>;
+  telemetry?: Partial<TelemetrySettings>;
+  callouts?: Partial<CalloutSettings>;
 }
 
-export const DEFAULT_DELTA = { range: 1.0, ref: "fastest" as RefMode, showBar: true, showNumber: true };
+export const DEFAULT_DELTA: DeltaSettings = { range: 1.0, ref: "fastest", showBar: true, showNumber: true };
+export const DEFAULT_TELEMETRY: TelemetrySettings = {
+  ref: "fastest", trace: true, inputs: true, gear: true, times: true,
+  horizontal: false, autohide: true,
+};
+export const DEFAULT_CALLOUTS: CalloutSettings = { lead: 250 };
+
+/** Widgets close themselves when switched off in the hub — the hub never
+ * needs a direct line to the widget windows, only to the engine. */
+export function useCloseWhenDisabled(name: keyof WidgetSettings, settings: WidgetSettings) {
+  useEffect(() => {
+    if (settings[name]?.enabled === false) window.close();
+  }, [name, settings]);
+}
 
 export function useWidgetSettings(): WidgetSettings {
   const [s, setS] = useState<WidgetSettings>({});

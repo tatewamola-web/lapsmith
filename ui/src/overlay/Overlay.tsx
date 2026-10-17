@@ -9,35 +9,17 @@
 import { useEffect, useRef, useState } from "react";
 import type { LiveFrame } from "../api";
 import { fmtTime, openLive } from "../api";
-import { useReference, useWidgetSettings } from "./useReference";
+import { DEFAULT_TELEMETRY, useCloseWhenDisabled, useReference, useWidgetSettings } from "./useReference";
 
-interface Toggles {
-  trace: boolean;
-  inputs: boolean;
-  gear: boolean;
-  times: boolean;
-  horizontal: boolean; // lengthwise layout: everything on one line
-  autohide: boolean;   // only visible while actually on track
-}
-
-const DEFAULT_TOGGLES: Toggles = {
-  trace: true, inputs: true, gear: true, times: true,
-  horizontal: false, autohide: true,
-};
 const TRAIL = 1800; // ~72s of frames for the live trace
 
 export default function Overlay() {
   const [frame, setFrame] = useState<LiveFrame | null>(null);
+  // all layout/panel settings live in the Widgets hub (stored by the engine)
   const settings = useWidgetSettings();
-  const { lap: refLap, meta: refMeta } = useReference(settings.telemetry?.ref ?? "fastest");
-  const [menuOpen, setMenuOpen] = useState(false);
-  const [toggles, setToggles] = useState<Toggles>(() => {
-    try {
-      return { ...DEFAULT_TOGGLES, ...JSON.parse(localStorage.getItem("overlay-toggles-v2") || "{}") };
-    } catch {
-      return DEFAULT_TOGGLES;
-    }
-  });
+  useCloseWhenDisabled("telemetry", settings);
+  const toggles = { ...DEFAULT_TELEMETRY, ...settings.telemetry };
+  const { lap: refLap } = useReference(toggles.ref);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   // on-track detection: the engine only streams frames while the sim is
   // live — silence means menus/garage
@@ -181,47 +163,16 @@ export default function Overlay() {
     ctx.stroke();
   }, [frame, refLap, toggles.trace]);
 
-  const save = (t: Toggles) => {
-    setToggles(t);
-    localStorage.setItem("overlay-toggles-v2", JSON.stringify(t));
-  };
-
   const gear = frame ? (frame.gear === 0 ? "N" : frame.gear === -1 ? "R" : String(frame.gear)) : "–";
   const rpmFrac = frame ? Math.min(frame.rpm / maxRpm.current, 1) : 0;
   const ringColor = rpmFrac > 0.92 ? "#f85149" : rpmFrac > 0.8 ? "#d4a017" : "#4dd0e1";
   const R = 26;
   const CIRC = 2 * Math.PI * R;
-  const refLabel = refMeta
-    ? refMeta.driver === "me"
-      ? `PB ${fmtTime(refMeta.lap_time)}`
-      : `${refMeta.driver.split(" ")[0]} ${fmtTime(refMeta.lap_time)}`
-    : "no reference yet";
-
   const hidden = toggles.autohide && !onTrack;
 
   return (
     <div className={`ovl ${toggles.horizontal ? "horizontal" : ""} ${hidden ? "faded" : ""}`}>
       <div className="ovl-grip" title="drag to move" />
-      <button className="ovl-gear" onClick={() => setMenuOpen(!menuOpen)}>⚙</button>
-
-      {menuOpen && (
-        <div className="ovl-menu">
-          {(Object.keys(DEFAULT_TOGGLES) as (keyof Toggles)[]).map((k) => (
-            <label key={k}>
-              <input
-                type="checkbox"
-                checked={toggles[k]}
-                onChange={(e) => save({ ...toggles, [k]: e.target.checked })}
-              />
-              {k}
-            </label>
-          ))}
-          <div className="ovl-hint">
-            ref: {refLabel} · Ctrl+Alt+O click-through · Ctrl+Alt+H hide · resize corners to scale
-          </div>
-          <button className="ovl-close" onClick={() => window.close()}>✕ close overlay</button>
-        </div>
-      )}
 
       {toggles.trace && (
         <div className="ovl-trace">

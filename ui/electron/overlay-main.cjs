@@ -20,6 +20,7 @@ const path = require("path");
 const WIDGETS = {
   telemetry: { width: 290, height: 152, minWidth: 170, minHeight: 52 },
   delta: { width: 420, height: 64, minWidth: 140, minHeight: 28 },
+  callouts: { width: 380, height: 54, minWidth: 140, minHeight: 26 },
 };
 
 const windows = {};
@@ -38,7 +39,8 @@ function loadBounds(name) {
     return JSON.parse(fs.readFileSync(statePath(name), "utf-8"));
   } catch {
     const b = WIDGETS[name];
-    return { x: 80, y: name === "delta" ? 30 : 140, width: b.width, height: b.height };
+    const y = { delta: 30, callouts: 100, telemetry: 160 }[name] ?? 160;
+    return { x: 80, y, width: b.width, height: b.height };
   }
 }
 

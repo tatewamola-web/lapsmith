@@ -7,10 +7,11 @@
 import { useEffect, useRef, useState } from "react";
 import type { LiveFrame } from "../api";
 import { openLive } from "../api";
-import { DEFAULT_DELTA, refTimeAt, useReference, useWidgetSettings } from "./useReference";
+import { DEFAULT_DELTA, refTimeAt, useCloseWhenDisabled, useReference, useWidgetSettings } from "./useReference";
 
 export default function DeltaWidget() {
   const settings = useWidgetSettings();
+  useCloseWhenDisabled("delta", settings);
   const cfg = { ...DEFAULT_DELTA, ...settings.delta };
   const { lap: ref } = useReference(cfg.ref);
   const [frame, setFrame] = useState<LiveFrame | null>(null);

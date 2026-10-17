@@ -422,6 +422,9 @@ def coach(laps: list, track: str = "", rival_laps: list = ()) -> Optional[dict]:
     FEATS = ("bp", "vmin", "ton")
     tips = []
     opportunities = []
+    # per-corner direction hints for in-car callouts:
+    # ci -> {feature: signed amount}  (bp/ton meters, vmin m/s; + = later/more)
+    hints: dict[int, dict[str, float]] = {}
     for ci, apex in enumerate(apexes):
         prev_a = apexes[ci - 1] if ci > 0 else 0
         next_a = apexes[ci + 1] if ci + 1 < len(apexes) else n - 1
@@ -451,6 +454,11 @@ def coach(laps: list, track: str = "", rival_laps: list = ()) -> Optional[dict]:
             if best_rival is not None and your_best_t - best_rival[3] >= 0.08:
                 gap = your_best_t - best_rival[3]
                 yb = rows[your_best_i]
+                hints[ci] = {
+                    "bp": best_rival[0] - yb[0],
+                    "vmin": best_rival[1] - yb[1],
+                    "ton": best_rival[2] - yb[2],
+                }
                 parts = []
                 if abs(best_rival[0] - yb[0]) > 3:
                     parts.append(f"brakes {abs(best_rival[0] - yb[0]):.0f}m "
@@ -529,12 +537,30 @@ def coach(laps: list, track: str = "", rival_laps: list = ()) -> Optional[dict]:
             else:
                 direction = "sooner" if best[fi] < med[fi] else "later"
                 msg = f"back to full throttle ~{delta:.0f}m {direction}"
+            hints.setdefault(ci, {}).setdefault(feat, float(best[fi] - med[fi]))
             tips.append({
                 "corner": names[ci] or f"T{ci + 1}",
                 "apex_pct": round(float(grid[apex]) / max_d * 100, 1),
                 "message": f"{msg} — like your fastest laps do",
                 "gain": round(gain, 3),
                 "laps_used": int(len(y)),
+            })
+
+    callouts = []
+    used_labels: set[str] = set()
+    for ci, h in sorted(hints.items()):
+        text = callout_text(h)
+        if text:
+            label = names[ci].split(" ")[0] if names[ci] else f"T{ci + 1}"
+            # an unnamed corner's sequential number can collide with an
+            # official turn number elsewhere on the lap — disambiguate
+            while label in used_labels:
+                label += "b"
+            used_labels.add(label)
+            callouts.append({
+                "corner": label,
+                "apex_dist": round(float(grid[apexes[ci]]), 1),
+                "text": text,
             })
 
     tips.sort(key=lambda t: -t["gain"])
@@ -550,7 +576,31 @@ def coach(laps: list, track: str = "", rival_laps: list = ()) -> Optional[dict]:
         "model": model,
         "tips": tips[:6],
         "opportunities": opportunities[:5],
+        "callouts": callouts,
     }
+
+
+def callout_text(h: dict) -> str:
+    """Turn raw per-corner differences into a few words a driver can absorb
+    at speed: 'Brake slightly later, throttle sooner'. At most two hints."""
+    parts = []
+    bp = h.get("bp", 0.0)
+    if abs(bp) > 3:
+        size = "" if abs(bp) > 8 else "slightly "
+        parts.append(f"brake {size}{'later' if bp > 0 else 'earlier'}")
+    v = h.get("vmin", 0.0) * 2.23694  # mph
+    if v > 0.7:
+        parts.append("carry more speed" if v > 1.5 else "carry a bit more speed")
+    elif v < -1.5:
+        parts.append("slow in more")
+    ton = h.get("ton", 0.0)
+    if abs(ton) > 3:
+        size = "" if abs(ton) > 8 else "slightly "
+        parts.append(f"throttle {size}{'later' if ton > 0 else 'sooner'}")
+    if not parts:
+        return ""
+    text = ", ".join(parts[:2])
+    return text[0].upper() + text[1:]
 
 
 def lap_channels_payload(channels: dict[str, np.ndarray]) -> dict:

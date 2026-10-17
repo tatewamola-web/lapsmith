@@ -31,6 +31,8 @@ from .storage import LapStore
 
 logger = logging.getLogger(__name__)
 
+WIDGET_NAMES = ("telemetry", "delta", "callouts")
+
 
 class Engine:
     """Owns the adapter loop and the latest-state snapshot."""
@@ -330,7 +332,7 @@ def create_app(adapter_name: str = "sim", data_dir: Path = Path("data")) -> Fast
         result = analysis.coach(channels, track=track, rival_laps=rivals)
         if result is None:
             return {"laps_analyzed": len(channels), "rivals_analyzed": len(rivals),
-                    "tips": [], "opportunities": [],
+                    "tips": [], "opportunities": [], "callouts": [],
                     "note": "need at least 8 valid laps with telemetry on this combo"}
         return result
 
@@ -345,13 +347,17 @@ def create_app(adapter_name: str = "sim", data_dir: Path = Path("data")) -> Fast
         host process serves every widget; a second launch just adds or
         reloads that widget's window."""
         import subprocess
-        if widget not in ("telemetry", "delta"):
+        if widget not in WIDGET_NAMES:
             return {"ok": False, "error": f"unknown widget '{widget}'"}
         root = Path(__file__).resolve().parents[2]
         electron = root / "ui" / "node_modules" / "electron" / "dist" / "electron.exe"
         script = root / "ui" / "electron" / "overlay-main.cjs"
         if not electron.exists():
             return {"ok": False, "error": "electron not installed (run npm install in ui/)"}
+        # mark enabled first: widgets close themselves when disabled
+        settings = _read_widgets()
+        settings.setdefault(widget, {})["enabled"] = True
+        _write_widgets(settings)
         subprocess.Popen([str(electron), str(script), f"--widget={widget}"],
                          cwd=str(root / "ui"))
         return {"ok": True}
@@ -361,18 +367,23 @@ def create_app(adapter_name: str = "sim", data_dir: Path = Path("data")) -> Fast
     # the engine.
     widgets_path = Path(data_dir) / "widgets.json"
 
-    @app.get("/api/widgets/settings")
-    def widgets_get():
+    def _read_widgets() -> dict:
         try:
             return json.loads(widgets_path.read_text(encoding="utf-8"))
         except (OSError, ValueError):
             return {}
 
-    @app.post("/api/widgets/settings")
-    async def widgets_set(request: Request):
-        settings = await request.json()
+    def _write_widgets(settings: dict) -> None:
         widgets_path.parent.mkdir(parents=True, exist_ok=True)
         widgets_path.write_text(json.dumps(settings, indent=2), encoding="utf-8")
+
+    @app.get("/api/widgets/settings")
+    def widgets_get():
+        return _read_widgets()
+
+    @app.post("/api/widgets/settings")
+    async def widgets_set(request: Request):
+        _write_widgets(await request.json())
         return {"ok": True}
 
     @app.post("/api/import/game-history")

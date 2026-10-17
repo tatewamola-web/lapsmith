@@ -428,6 +428,26 @@ and the Electron windows have separate storage — but both talk to the engine.
 
 ---
 
+## 2026-10-17 — Corner callouts and a real widget hub
+
+### Callouts: from analysis to instruction
+The coach's findings were written for reading after a session ("the fastest
+driver here brakes 12m later, carries 5mph more…"). A driver at 150mph gets
+about one glance. So the coach now also emits a callout per corner — the raw
+differences (braking point, minimum speed, throttle point) bucketed into at
+most two plain verbs: *"Brake slightly later, throttle sooner"*. The widget
+shows it a configurable distance before the apex and clears after.
+**Lesson: the same insight needs different packaging for different moments —
+detail for the debrief, a verb for the corner.**
+
+### The hub owns the widgets
+Widget settings moved out of the widgets' own gear menus into the Widgets
+tab, along with on/off switches. Turning a widget off doesn't need any
+connection to its window: the widget polls its settings from the engine and
+closes itself when it sees `enabled: false`. One source of truth, no IPC.
+
+---
+
 ## Design principles that emerged (running list)
 
 1. **Wall off what varies.** One adapter per sim; everything else is shared.

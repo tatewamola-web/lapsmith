@@ -9,7 +9,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { LiveFrame } from "../api";
 import { fmtTime, openLive } from "../api";
-import { DEFAULT_TELEMETRY, useCloseWhenDisabled, useReference, useWidgetSettings } from "./useReference";
+import { DEFAULT_TELEMETRY, hideInMenus, useCloseWhenDisabled, useReference, useWidgetSettings } from "./useReference";
 
 const TRAIL = 1800; // ~72s of frames for the live trace
 
@@ -168,7 +168,7 @@ export default function Overlay() {
   const ringColor = rpmFrac > 0.92 ? "#f85149" : rpmFrac > 0.8 ? "#d4a017" : "#4dd0e1";
   const R = 26;
   const CIRC = 2 * Math.PI * R;
-  const hidden = toggles.autohide && !onTrack;
+  const hidden = hideInMenus(settings) && !onTrack;
 
   return (
     <div className={`ovl ${toggles.horizontal ? "horizontal" : ""} ${hidden ? "faded" : ""}`}>

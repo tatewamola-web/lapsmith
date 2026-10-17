@@ -50,3 +50,8 @@ class BaseAdapter(ABC):
         """Frames for other same-class cars, [(slot_id, driver, car, frame)].
         Optional — sims that can't see other cars return nothing."""
         return []
+
+    def nearby(self, radius: float = 25.0):
+        """((x, z) of the player, [(x, z) of cars within radius]) or None.
+        Optional — used by the spotter; sims without it just get no spotter."""
+        return None

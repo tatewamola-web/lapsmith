@@ -9,6 +9,7 @@ dependencies = [
     "numpy>=1.26",
     "python-multipart>=0.0.9",
     "scikit-learn>=1.4",
+    "piper-tts>=1.2",
 ]
 
 [build-system]

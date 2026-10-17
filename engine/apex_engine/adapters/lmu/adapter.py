@@ -181,6 +181,34 @@ class LMUAdapter(BaseAdapter):
             out.append((int(sv.mID), _decode(sv.mDriverName), _decode(sv.mVehicleName), frame))
         return out
 
+    def nearby(self, radius: float = 25.0):
+        """World x/z of the player and every car within `radius` meters
+        (cars in the pits excluded) — the spotter's raw input. Reuses the
+        buffers poll() just refreshed, so it costs no extra shared-memory read."""
+        if self._tele is None or self._scor is None:
+            return None
+        player = self._player_scoring()
+        if player is None:
+            return None
+        in_pits = {}
+        sdata = self._scor.data
+        for i in range(min(sdata.mScoringInfo.mNumVehicles, C.MAX_MAPPED_VEHICLES)):
+            in_pits[int(sdata.mVehicles[i].mID)] = bool(sdata.mVehicles[i].mInPits)
+        me = None
+        others = []
+        tdata = self._tele.data
+        for i in range(min(tdata.mNumVehicles, C.MAX_MAPPED_VEHICLES)):
+            v = tdata.mVehicles[i]
+            pos = (float(v.mPos.x), float(v.mPos.z))
+            if v.mID == player.mID:
+                me = pos
+            elif not in_pits.get(int(v.mID), False):
+                others.append(pos)
+        if me is None:
+            return None
+        r2 = radius * radius
+        return me, [o for o in others if (o[0] - me[0]) ** 2 + (o[1] - me[1]) ** 2 < r2]
+
     # -- helpers ------------------------------------------------------
 
     def _player_scoring(self):

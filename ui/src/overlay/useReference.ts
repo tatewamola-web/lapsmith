@@ -92,6 +92,7 @@ export interface CalloutSettings {
   lead: number; // meters before the apex the callout appears
 }
 export interface WidgetSettings {
+  general?: { autohide?: boolean }; // hide every widget in menus/garage
   delta?: Partial<DeltaSettings>;
   telemetry?: Partial<TelemetrySettings>;
   callouts?: Partial<CalloutSettings>;
@@ -104,9 +105,14 @@ export const DEFAULT_TELEMETRY: TelemetrySettings = {
 };
 export const DEFAULT_CALLOUTS: CalloutSettings = { lead: 250 };
 
+/** Global "Hide in menus" (falls back to on). */
+export function hideInMenus(settings: WidgetSettings): boolean {
+  return settings.general?.autohide ?? true;
+}
+
 /** Widgets close themselves when switched off in the hub — the hub never
  * needs a direct line to the widget windows, only to the engine. */
-export function useCloseWhenDisabled(name: keyof WidgetSettings, settings: WidgetSettings) {
+export function useCloseWhenDisabled(name: "delta" | "telemetry" | "callouts", settings: WidgetSettings) {
   useEffect(() => {
     if (settings[name]?.enabled === false) window.close();
   }, [name, settings]);

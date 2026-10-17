@@ -27,7 +27,9 @@ from . import analysis
 from .adapters import get_adapter
 from .recorder import LapRecorder
 from .schema import TelemetryFrame, SessionContext
+from .assist import CalloutSpeaker, Spotter
 from .storage import LapStore
+from .voice import Voice
 
 logger = logging.getLogger(__name__)
 
@@ -46,6 +48,13 @@ class Engine:
         self.session_id: Optional[int] = None
         self.connected = False
         self.laps_recorded = 0
+        self.data_dir = Path(data_dir)
+        self._settings: dict = {}
+        self._settings_at = 0.0
+        self.voice = Voice(self.data_dir)
+        self.callout_speaker = CalloutSpeaker(self.voice, self.coach_for)
+        self.spotter = Spotter(self.voice)
+        self.last_spotter = ""
         # One recorder per same-class opponent: their completed laps are
         # captured live from shared memory — real reference laps from
         # faster drivers, full telemetry included.
@@ -81,6 +90,56 @@ class Engine:
         lap_id = self.store.save_lap(lap, session_id=self.session_id)
         self.laps_recorded += 1
         logger.info("stored lap id=%d time=%.3f valid=%s", lap_id, lap.lap_time, lap.valid)
+
+    def coach_for(self, track: str, car_class: str = "", car: str = "") -> dict:
+        """Coach over up to 40 of your valid laps (+ rival laps) for a combo."""
+        all_metas = [
+            m for m in self.store.list_laps(track=track)
+            if m["valid"] and m["has_data"]
+            and (m["car_class"] == car_class if car_class else m["car"] == car)
+        ]
+        channels, rivals = [], []
+        for m in all_metas:
+            if m["source"] != "opponent" and len(channels) >= 40:
+                continue
+            ch = self.store.load_channels(m["id"])
+            if ch is None:
+                continue
+            (rivals if m["source"] == "opponent" else channels).append(ch)
+        result = analysis.coach(channels, track=track, rival_laps=rivals)
+        if result is None:
+            return {"laps_analyzed": len(channels), "rivals_analyzed": len(rivals),
+                    "tips": [], "opportunities": [], "callouts": [],
+                    "note": "need at least 8 valid laps with telemetry on this combo"}
+        return result
+
+    def widget_settings(self) -> dict:
+        """widgets.json, re-read at most once a second (the 50 Hz loop asks)."""
+        now = time.monotonic()
+        if now - self._settings_at > 1.0:
+            self._settings_at = now
+            try:
+                self._settings = json.loads(
+                    (self.data_dir / "widgets.json").read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                self._settings = {}
+        return self._settings
+
+    def _assist(self, adapter, frame) -> None:
+        """Spoken callouts + spotter. Never allowed to break recording."""
+        try:
+            vs = self.widget_settings().get("voice", {})
+            if not vs.get("enabled"):
+                return
+            if vs.get("callouts", True):
+                lead = float(self.widget_settings().get("callouts", {}).get("lead", 250))
+                self.callout_speaker.on_frame(frame, self.session, lead)
+            if vs.get("spotter", False):
+                msg = self.spotter.on_frame(adapter.nearby())
+                if msg:
+                    self.last_spotter = msg
+        except Exception:
+            logger.exception("assist error (ignored)")
 
     def _feed_opponents(self, adapter):
         """Record every same-class car; only laps faster than your PB are
@@ -168,6 +227,8 @@ class Engine:
                     with self._lock:
                         self.latest = frame
                 self._feed_opponents(adapter)
+                if frame is not None:
+                    self._assist(adapter, frame)
                 time.sleep(interval)
             except Exception:
                 logger.exception("engine loop error; reconnecting")
@@ -316,25 +377,14 @@ def create_app(adapter_name: str = "sim", data_dir: Path = Path("data")) -> Fast
     @app.get("/api/coach")
     def coach_endpoint(track: str, car_class: str = "", car: str = ""):
         """Regression coach over up to 40 of your valid laps for a combo."""
-        all_metas = [
-            m for m in engine.store.list_laps(track=track)
-            if m["valid"] and m["has_data"]
-            and (m["car_class"] == car_class if car_class else m["car"] == car)
-        ]
-        channels, rivals = [], []
-        for m in all_metas:
-            if m["source"] != "opponent" and len(channels) >= 40:
-                continue
-            ch = engine.store.load_channels(m["id"])
-            if ch is None:
-                continue
-            (rivals if m["source"] == "opponent" else channels).append(ch)
-        result = analysis.coach(channels, track=track, rival_laps=rivals)
-        if result is None:
-            return {"laps_analyzed": len(channels), "rivals_analyzed": len(rivals),
-                    "tips": [], "opportunities": [], "callouts": [],
-                    "note": "need at least 8 valid laps with telemetry on this combo"}
-        return result
+        return engine.coach_for(track, car_class, car)
+
+    @app.post("/api/voice/test")
+    def voice_test():
+        if not engine.voice.available:
+            return {"ok": False, "error": "voice model missing (data/voices)"}
+        engine.voice.say("Radio check. Turn one, brake a touch later, then throttle sooner.")
+        return {"ok": True}
 
     @app.get("/api/ideal")
     def ideal(game: str, track: str, car: str = "", car_class: str = ""):

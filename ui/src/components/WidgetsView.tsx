@@ -7,6 +7,8 @@ import { useEffect, useState } from "react";
 type RefMode = "fastest" | "pb";
 
 interface Settings {
+  general: { autohide: boolean };
+  voice: { enabled: boolean; callouts: boolean; spotter: boolean };
   delta: { enabled: boolean; range: number; ref: RefMode; showBar: boolean; showNumber: boolean };
   telemetry: {
     enabled: boolean; ref: RefMode;
@@ -15,9 +17,11 @@ interface Settings {
   };
   callouts: { enabled: boolean; lead: number };
 }
-type Name = keyof Settings;
+type Name = "delta" | "telemetry" | "callouts";
 
 const DEFAULTS: Settings = {
+  general: { autohide: true },
+  voice: { enabled: false, callouts: true, spotter: false },
   delta: { enabled: false, range: 1.0, ref: "fastest", showBar: true, showNumber: true },
   telemetry: {
     enabled: false, ref: "fastest",
@@ -82,6 +86,8 @@ export default function WidgetsView() {
         .then((r) => r.json())
         .then((d) =>
           setS({
+            general: { ...DEFAULTS.general, ...d.general },
+            voice: { ...DEFAULTS.voice, ...d.voice },
             delta: { ...DEFAULTS.delta, ...d.delta },
             telemetry: { ...DEFAULTS.telemetry, ...d.telemetry },
             callouts: { ...DEFAULTS.callouts, ...d.callouts },
@@ -102,7 +108,7 @@ export default function WidgetsView() {
     setTimeout(() => setSaved(false), 1200);
   };
 
-  const set = <N extends Name>(name: N, patch: Partial<Settings[N]>) =>
+  const set = <N extends keyof Settings>(name: N, patch: Partial<Settings[N]>) =>
     save({ ...s, [name]: { ...s[name], ...patch } });
 
   const toggleWidget = async (name: Name, on: boolean) => {
@@ -123,10 +129,30 @@ export default function WidgetsView() {
         {saved && <span className="widgets-saved"> ✓ saved</span>}
       </p>
 
+      <label className="widgets-general">
+        <input type="checkbox" checked={s.general.autohide}
+          onChange={(e) => set("general", { autohide: e.target.checked })} />
+        <span><b>Hide in menus</b> — every widget disappears in the garage and menus and comes back on track</span>
+      </label>
+
+      <Card
+        enabled={s.voice.enabled}
+        onToggle={() => set("voice", { enabled: !s.voice.enabled })}
+        title="Voice"
+        desc="A race-engineer voice through your speakers or headset. Runs locally with a neural voice, no internet. Works whether or not any widget is open."
+      >
+        <Check label="Speak corner callouts" checked={s.voice.callouts} onChange={(v) => set("voice", { callouts: v })} />
+        <Check label="Spotter (beta) — car left / right / clear" checked={s.voice.spotter} onChange={(v) => set("voice", { spotter: v })} />
+        <button className="pick" onClick={async () => {
+          const d = await (await fetch("/api/voice/test", { method: "POST" })).json().catch(() => ({ ok: false }));
+          if (!d.ok) alert(d.error ?? "Voice test failed");
+        }}>▶ TEST VOICE</button>
+      </Card>
+
       <Card
         enabled={s.callouts.enabled}
         onToggle={() => toggleWidget("callouts", !s.callouts.enabled)}
-        title="Corner Callouts"
+        title="Corner Callouts (on screen)"
         desc="One short instruction per corner as you approach it — e.g. “T1 · Brake slightly later, throttle sooner”. Learned from your laps and the fastest driving recorded at each track."
       >
         <label className="wset">
@@ -168,7 +194,6 @@ export default function WidgetsView() {
         <Check label="Gear + revs" checked={s.telemetry.gear} onChange={(v) => set("telemetry", { gear: v })} />
         <Check label="Lap times" checked={s.telemetry.times} onChange={(v) => set("telemetry", { times: v })} />
         <Check label="Horizontal layout" checked={s.telemetry.horizontal} onChange={(v) => set("telemetry", { horizontal: v })} />
-        <Check label="Hide in menus" checked={s.telemetry.autohide} onChange={(v) => set("telemetry", { autohide: v })} />
       </Card>
     </div>
   );

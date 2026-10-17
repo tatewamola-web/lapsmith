@@ -448,6 +448,33 @@ closes itself when it sees `enabled: false`. One source of truth, no IPC.
 
 ---
 
+## 2026-10-17 (later): Lapsmith gets a voice
+
+### A neural voice, not a robot
+Windows' built-in speech is the robotic SAPI voice. Lapsmith instead runs
+Piper, an open-source neural text-to-speech model, locally: 0.7s to
+synthesize three seconds of speech, and every phrase is cached as a WAV so
+repeated callouts play instantly. Written callouts get rewritten for the ear
+("T1 · Brake slightly later, throttle sooner" becomes "Turn one. Brake a
+touch later, then throttle sooner.") and trigger about 3.5 seconds of travel
+ahead of the corner, so the sentence ends before the braking zone.
+
+### Spotter (beta): calibrated from data, not assumed
+Telling left from right means knowing the handedness of LMU's world
+coordinates, and getting it backwards would make a spotter dangerous rather
+than useless. Instead of guessing, the engine's recorded laps answered it:
+across 13,400 samples, steering right rotated the heading toward the
+negative cross-product side 99.2% of the time. Each nearby car is projected
+onto the player's heading and its normal; overlap within a car length means
+"alongside". A 0.35s hold stops flicker, and spotter calls cut off coaching
+mid-sentence. It was tested against synthetic traffic first (right, three
+wide, clear right, clear left, far car ignored) before ever speaking in a
+real race.
+**Lesson: when a mistake would be dangerous, measure the convention instead
+of assuming it.**
+
+---
+
 ## Design principles that emerged (running list)
 
 1. **Wall off what varies.** One adapter per sim; everything else is shared.

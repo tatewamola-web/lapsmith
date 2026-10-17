@@ -7,7 +7,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { LiveFrame } from "../api";
 import { openLive } from "../api";
-import { DEFAULT_DELTA, refTimeAt, useCloseWhenDisabled, useReference, useWidgetSettings } from "./useReference";
+import { DEFAULT_DELTA, hideInMenus, refTimeAt, useCloseWhenDisabled, useReference, useWidgetSettings } from "./useReference";
 
 export default function DeltaWidget() {
   const settings = useWidgetSettings();
@@ -56,7 +56,7 @@ export default function DeltaWidget() {
   const numColor = delta == null ? "#8b949e" : trend < -0.005 ? "#3fb950" : trend > 0.005 ? "#f85149" : "#e8eaed";
 
   return (
-    <div className={`dw ${onTrack ? "" : "faded"}`}>
+    <div className={`dw ${onTrack || !hideInMenus(settings) ? "" : "faded"}`}>
       <div className="dw-grip" title="drag to move" />
       {cfg.showBar && (
         <div className="dw-bar">

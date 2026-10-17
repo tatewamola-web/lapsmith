@@ -118,6 +118,23 @@ off closes it.
   with a rev ring, lap times; stacked or horizontal layout, every panel
   toggleable from the hub.
 
+### Voice
+
+A race-engineer voice through your speakers or headset, switched on in the
+Widgets tab. It runs locally (Piper neural TTS, no internet, no API key), so
+it sounds like a person rather than a sat-nav, and it works whether or not
+any widget window is open.
+
+- **Spoken corner callouts**: *"Turn one. Brake a touch later, then throttle
+  sooner."*, timed to finish before the braking zone.
+- **Spotter (beta)**: *"Car left." / "Three wide, you're in the middle." /
+  "Clear right."* from every nearby car's position, interrupting anything
+  less urgent.
+
+On a fresh install, run `scripts\get-voice.cmd` once to download the voice.
+The **Hide in menus** switch at the top of the Widgets tab applies to every
+widget.
+
 Both can compare against the fastest lap in your library (captured rivals
 included) or strictly your own PB. Ctrl+Alt+O = click-through, Ctrl+Alt+H =
 hide all, Ctrl+Alt+R = reload.

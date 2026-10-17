@@ -17,8 +17,9 @@ import {
 import AnalysisView from "./components/AnalysisView";
 import LiveView from "./components/LiveView";
 import SessionsView from "./components/SessionsView";
+import WidgetsView from "./components/WidgetsView";
 
-type Tab = "live" | "analysis" | "sessions";
+type Tab = "live" | "analysis" | "sessions" | "widgets";
 
 export default function App() {
   const [tab, setTab] = useState<Tab>("analysis");
@@ -150,7 +151,7 @@ export default function App() {
       <header className="header">
         <span className="brand">LAPSMITH</span>
         <nav className="tabs">
-          {(["live", "analysis", "sessions"] as Tab[]).map((t) => (
+          {(["live", "analysis", "sessions", "widgets"] as Tab[]).map((t) => (
             <button key={t} className={`tab ${tab === t ? "active" : ""}`} onClick={() => setTab(t)}>
               {t.toUpperCase()}
             </button>
@@ -230,6 +231,7 @@ export default function App() {
           />
         )}
         {tab === "sessions" && <SessionsView sessions={sessions} onOpen={openSession} />}
+        {tab === "widgets" && <WidgetsView />}
       </div>
     </div>
   );

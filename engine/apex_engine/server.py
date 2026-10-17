@@ -19,7 +19,7 @@ import time
 from pathlib import Path
 from typing import Optional
 
-from fastapi import FastAPI, UploadFile, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, Request, UploadFile, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import Response
 
@@ -340,15 +340,39 @@ def create_app(adapter_name: str = "sim", data_dir: Path = Path("data")) -> Fast
         return result if result else Response(status_code=404)
 
     @app.post("/api/overlay/launch")
-    def overlay_launch():
-        """Spawn the Electron overlay window (same machine as the engine)."""
+    def overlay_launch(widget: str = "telemetry"):
+        """Open a widget window (same machine as the engine). One Electron
+        host process serves every widget; a second launch just adds or
+        reloads that widget's window."""
         import subprocess
+        if widget not in ("telemetry", "delta"):
+            return {"ok": False, "error": f"unknown widget '{widget}'"}
         root = Path(__file__).resolve().parents[2]
         electron = root / "ui" / "node_modules" / "electron" / "dist" / "electron.exe"
         script = root / "ui" / "electron" / "overlay-main.cjs"
         if not electron.exists():
             return {"ok": False, "error": "electron not installed (run npm install in ui/)"}
-        subprocess.Popen([str(electron), str(script)], cwd=str(root / "ui"))
+        subprocess.Popen([str(electron), str(script), f"--widget={widget}"],
+                         cwd=str(root / "ui"))
+        return {"ok": True}
+
+    # Widget settings live in the engine, not browser storage: the web UI and
+    # the Electron widget windows don't share localStorage, but both talk to
+    # the engine.
+    widgets_path = Path(data_dir) / "widgets.json"
+
+    @app.get("/api/widgets/settings")
+    def widgets_get():
+        try:
+            return json.loads(widgets_path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return {}
+
+    @app.post("/api/widgets/settings")
+    async def widgets_set(request: Request):
+        settings = await request.json()
+        widgets_path.parent.mkdir(parents=True, exist_ok=True)
+        widgets_path.write_text(json.dumps(settings, indent=2), encoding="utf-8")
         return {"ok": True}
 
     @app.post("/api/import/game-history")

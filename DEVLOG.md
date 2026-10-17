@@ -409,6 +409,25 @@ and rough map-derived percentages stop mattering.
 
 ---
 
+## 2026-10-16 — Widgets become a system
+
+### Delta bar + a Widgets tab
+The single overlay became a widget host: one Electron process, one window
+per widget, each with its own saved position and size, selected by a URL
+parameter on a shared page. First new widget: an iRacing-style **delta bar** —
+live gap to the reference lap, computed client-side by interpolating the
+reference lap's elapsed time at the car's current distance (the same
+compare-by-position idea as the analysis charts, run 25 times a second).
+The bar shows *where you stand*; the number's color shows *which way it's
+moving*, since "still behind but gaining" is the thing a driver can act on.
+
+A new **Widgets** tab launches and configures them. Settings live in the
+engine (`data/widgets.json`) rather than browser storage, because the web UI
+and the Electron windows have separate storage — but both talk to the engine.
+**Lesson: put shared state where every reader can reach it.**
+
+---
+
 ## Design principles that emerged (running list)
 
 1. **Wall off what varies.** One adapter per sim; everything else is shared.

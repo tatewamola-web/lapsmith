@@ -97,15 +97,24 @@ Track corner names self-calibrate: a track seeded from a public map corrects
 itself the first time you drive it, whenever detection finds exactly as many
 corners as the name list holds.
 
-## In-game overlay
+## In-game widgets
 
-Launch from the ☰ menu in the app (or `scripts\overlay.cmd`). A transparent
-always-on-top window over the game (borderless-windowed mode) showing a
-rolling trace of the reference lap's throttle/brake with your live inputs
-drawn over it, your pedal bars, and a gear indicator with the revs wrapped
-around it. Stacked or lengthwise strip layout, movable, resizable,
-per-widget toggles. Ctrl+Alt+O = click-through, Ctrl+Alt+H = hide,
-Ctrl+Alt+R = reload.
+Open the **Widgets** tab in the app to launch and configure them. Each widget
+is its own transparent always-on-top window over the game (set the game to
+borderless-windowed): drag anywhere, resize from a corner to scale, and it
+remembers where you left it. Settings changed in the app reach open widgets
+within a few seconds.
+
+- **Delta Bar** — iRacing-style live gap to your reference lap. The bar fills
+  green (ahead) or red (behind) from the center; the number turns green while
+  you're gaining *right now*. Adjustable range, bar/number toggles.
+- **Input Trace** — rolling throttle/brake trace against the reference lap
+  with your live inputs on top (ABS moments glow amber), pedal bars, gear
+  with a rev ring, lap times; stacked or horizontal layout.
+
+Both can compare against the fastest lap in your library (captured rivals
+included) or strictly your own PB. Ctrl+Alt+O = click-through, Ctrl+Alt+H =
+hide all, Ctrl+Alt+R = reload.
 
 ## Roadmap
 

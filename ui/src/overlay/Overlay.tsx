@@ -7,8 +7,9 @@
 // - Gear: big digit with the revs wrapping around it as a ring, speed below.
 
 import { useEffect, useRef, useState } from "react";
-import type { LapChannels, LapMeta, LiveFrame } from "../api";
-import { fmtTime, getLapData, getLaps, getStatus, openLive } from "../api";
+import type { LiveFrame } from "../api";
+import { fmtTime, openLive } from "../api";
+import { useReference, useWidgetSettings } from "./useReference";
 
 interface Toggles {
   trace: boolean;
@@ -27,8 +28,8 @@ const TRAIL = 1800; // ~72s of frames for the live trace
 
 export default function Overlay() {
   const [frame, setFrame] = useState<LiveFrame | null>(null);
-  const [refLap, setRefLap] = useState<LapChannels | null>(null);
-  const [refMeta, setRefMeta] = useState<LapMeta | null>(null);
+  const settings = useWidgetSettings();
+  const { lap: refLap, meta: refMeta } = useReference(settings.telemetry?.ref ?? "fastest");
   const [menuOpen, setMenuOpen] = useState(false);
   const [toggles, setToggles] = useState<Toggles>(() => {
     try {
@@ -37,7 +38,6 @@ export default function Overlay() {
       return DEFAULT_TOGGLES;
     }
   });
-  const comboKey = useRef("");
   const canvasRef = useRef<HTMLCanvasElement>(null);
   // on-track detection: the engine only streams frames while the sim is
   // live — silence means menus/garage
@@ -61,41 +61,6 @@ export default function Overlay() {
     return () => clearInterval(h);
   }, []);
 
-  // reference = fastest lap with telemetry for this track+class, any driver
-  useEffect(() => {
-    const pick = async () => {
-      try {
-        const s = await getStatus();
-        const sess = s.session;
-        if (!sess?.track) return;
-        const key = `${sess.game}|${sess.track}|${sess.car_class || sess.car}`;
-        if (key === comboKey.current) return;
-        const laps = await getLaps();
-        const candidates = laps.filter(
-          (l) =>
-            l.track === sess.track &&
-            (sess.car_class ? l.car_class === sess.car_class : l.car === sess.car) &&
-            l.valid &&
-            l.has_data !== false
-        );
-        if (!candidates.length) {
-          comboKey.current = key;
-          setRefLap(null);
-          setRefMeta(null);
-          return;
-        }
-        const best = candidates.reduce((a, b) => (a.lap_time <= b.lap_time ? a : b));
-        comboKey.current = key;
-        setRefMeta(best);
-        setRefLap((await getLapData(best.id)) as LapChannels);
-      } catch {
-        /* engine offline; retry */
-      }
-    };
-    pick();
-    const h = setInterval(pick, 7000);
-    return () => clearInterval(h);
-  }, []);
 
   // accumulate my inputs; reset on new lap
   useEffect(() => {

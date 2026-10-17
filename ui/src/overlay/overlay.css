@@ -125,7 +125,60 @@ html, body, #root { margin: 0; height: 100%; background: transparent; overflow: 
   border-radius: 6px;
 }
 
+/* -- delta bar widget ---------------------------------------------------- */
+
+.dw {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 4px 10px 6px;
+  position: relative;
+  transition: opacity 0.4s;
+}
+.dw.faded { opacity: 0; }
+.dw-grip {
+  position: absolute;
+  inset: 0;
+  -webkit-app-region: drag;
+  cursor: move;
+}
+.dw-bar {
+  position: relative;
+  width: 100%;
+  height: 14px;
+  background: rgba(20, 24, 29, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.dw-center {
+  position: absolute;
+  left: 50%;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  margin-left: -1px;
+  background: rgba(232, 234, 237, 0.75);
+  z-index: 2;
+}
+.dw-fill { position: absolute; top: 0; bottom: 0; transition: left 0.08s, width 0.08s; }
+.dw-num {
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1;
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: rgba(10, 12, 15, 0.8);
+  font-variant-numeric: tabular-nums;
+}
+
 /* never let shrinking clip the essentials */
 .ovl-mid, .ovl-trace { overflow: hidden; }
 .gear-ring { flex-shrink: 0; }
 .pbars { flex-shrink: 0; }
+
+/* a hidden widget must not keep a drag region over the game */
+.dw.faded, .dw.faded .dw-grip { pointer-events: none; -webkit-app-region: no-drag; }

@@ -72,22 +72,15 @@ function openWidget(name) {
     win.loadURL(`http://localhost:8000/overlay.html?w=${name}`);
   });
 
-  // corner-resize scales the whole widget
-  const applyZoom = () => {
-    const [w, h] = win.getSize();
-    let base = { w: cfg.width, h: cfg.height };
-    if (name === "telemetry" && w / h > 3) base = { w: 640, h: 110 }; // horizontal layout
-    const zoom = Math.max(0.3, Math.min(3, Math.min(w / base.w, h / base.h)));
-    win.webContents.setZoomFactor(zoom);
-  };
-  win.webContents.on("did-finish-load", applyZoom);
+  // Scaling happens inside each widget's page (CSS zoom). Electron's
+  // setZoomFactor is shared by every window on the same origin — all
+  // widgets are localhost:8000 — so one widget's zoom leaked into the rest.
   const saveBounds = () => {
     try {
       fs.writeFileSync(statePath(name), JSON.stringify(win.getBounds()));
     } catch {}
   };
   win.on("moved", saveBounds);
-  win.on("resize", applyZoom);
   win.on("resized", saveBounds);
   win.on("closed", () => delete windows[name]);
 }

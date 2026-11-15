@@ -639,6 +639,27 @@ round numbers of seconds, suspect a timeout or fallback, not slowness.**
 
 ---
 
+## 2026-11-15 (calibration): Matching LMU's damage colours
+
+Field report: a light touch with no visible damage was called "light
+damage", and a pit-lane crash that turned the front orange was also called
+"light". Reading the car's state right after showed why. rF2/LMU track body
+damage in 8 zones, each 0/1/2, and the orange front zone read 2. LMU's
+screen is literally drawing those zones: 1 = yellow, 2 = orange, a part
+gone = red. The engineer had been counting total new dents instead, so a
+zone jumping to orange (+2) still looked "light", and a one-dent touch
+spoke up.
+
+Now severity is the worst zone that got worse (yellow → light, orange →
+medium, part lost → heavy), and a zone turning yellow from a tiny impact is
+treated as a touch and stays silent. That impact cut-off is a guess, so
+every incident now logs its zone values, impact size, and parts lost to
+engine.log to be tuned from real crashes.
+**Lesson: when software interprets the same data a human sees on screen,
+calibrate against the screen, not your intuition about the numbers.**
+
+---
+
 ## Design principles that emerged (running list)
 
 1. **Wall off what varies.** One adapter per sim; everything else is shared.

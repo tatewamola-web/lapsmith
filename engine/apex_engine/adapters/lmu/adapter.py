@@ -230,6 +230,11 @@ class LMUAdapter(BaseAdapter):
                     "suspension": [float(x) for x in cond.get("suspensionDamage", [0] * 4)],
                     "body": float(cond.get("vehicleDamage", 0.0)),
                 }
+                if n % 2 == 0:  # parts lost (red on LMU's damage screen)
+                    rr = json.load(urllib.request.urlopen(
+                        base + "/rest/garage/UIScreen/RepairAndRefuel", timeout=2))
+                    parts = rr.get("wearables", {}).get("body", {}).get("detachableParts", [])
+                    update["parts_lost"] = sum(1 for x in parts if x)
                 if n % 4 == 0:  # energy changes slowly: 0.5 Hz is plenty
                     fuel = json.load(urllib.request.urlopen(
                         base + "/rest/garage/UIScreen/RepairAndRefuel", timeout=2)).get("fuelInfo", {})
@@ -260,10 +265,13 @@ class LMUAdapter(BaseAdapter):
             "pressure": [float(v.mWheels[i].mPressure) for i in range(4)],
             "parts_detached": bool(v.mDetached),
             "dents": sum(int(d) for d in v.mDentSeverity),
+            # 8 zones around the car, 0/1/2 = LMU's none/yellow/orange
+            "dent_zones": [int(d) for d in v.mDentSeverity],
+            "impact": float(v.mLastImpactMagnitude),
             "overheating": bool(v.mOverheating),
             "rpm": float(v.mEngineRPM),
             # from LMU's REST API (None until it answers; stale after 3 s = unknown)
-            **({k: self._rest[k] for k in ("suspension", "body", "energy", "energy_max")
+            **({k: self._rest[k] for k in ("suspension", "body", "energy", "energy_max", "parts_lost")
                 if k in self._rest}
                if time.monotonic() - self._rest.get("at", -1e9) < 3 else {}),
         }

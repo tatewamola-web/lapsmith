@@ -214,7 +214,9 @@ class Engineer:
         self._pending_since: Optional[float] = None
         self._quiet_until = 0.0
         self._reported_rank = -1
-        self._dents_at_start: Optional[int] = None
+        self._zones_at_start: Optional[list[int]] = None
+        self._parts_at_start: Optional[int] = None
+        self._max_impact = 0.0
         self._tyre: Optional[tuple[str, int]] = None
         self._lost_part = False
         self._susp_hit: set[int] = set()
@@ -306,8 +308,9 @@ class Engineer:
                     self.voice.say(f"Losing pressure, {_WHEELS[i]}. Might be a slow puncture.")
 
         if status["dents"] > prev["dents"] or (status["parts_detached"] and not prev["parts_detached"]):
-            if self._dents_at_start is None:
-                self._dents_at_start = prev["dents"]
+            if self._zones_at_start is None:
+                self._zones_at_start = list(prev.get("dent_zones", []))
+                self._parts_at_start = prev.get("parts_lost")
             self._incident()
             if status["parts_detached"] and not prev["parts_detached"]:
                 self._lost_part = True
@@ -315,6 +318,8 @@ class Engineer:
         if status["overheating"] and not prev["overheating"]:
             self.voice.say("Engine's running hot.")
 
+        if self._pending_since is not None:
+            self._max_impact = max(self._max_impact, status.get("impact", 0.0))
         self._check_engine(frame, status)
         self._maybe_report(status)
 
@@ -339,19 +344,39 @@ class Engineer:
     def _incident(self, tyre: Optional[tuple[str, int]] = None) -> None:
         if self._pending_since is None:
             self._pending_since = time.monotonic()
+        if self._prev is not None:
+            self._max_impact = max(self._max_impact, self._prev.get("impact", 0.0))
         if tyre and (self._tyre is None or tyre[0] == "wheel"):
             self._tyre = tyre  # a lost wheel outranks a puncture
 
+    # A contact smaller than this is a touch, not damage worth a call.
+    # Tuned from logged incidents (see "incident:" lines in engine.log).
+    LIGHT_MIN_IMPACT = 400.0
+
     def _body_severity(self, status: dict) -> Optional[str]:
-        if self._dents_at_start is None and not self._lost_part:
+        """Grade body damage exactly like LMU's damage screen: the worst
+        zone that got worse. A zone reaching 1 = yellow (light), 2 = orange
+        (medium), a part coming off = red (heavy)."""
+        start = self._zones_at_start
+        if start is None and not self._lost_part:
             return None
-        start = status["dents"] if self._dents_at_start is None else self._dents_at_start
-        gained = status["dents"] - start
-        if gained >= 5 or status["dents"] >= 8:
-            return "heavy"
-        if gained >= 3 or self._lost_part:
-            return "medium"
-        return "light"
+        zones = status.get("dent_zones", [])
+        worst = max((z for z, z0 in zip(zones, start or zones) if z > z0), default=0)
+        parts_now = status.get("parts_lost")
+        parts_gone = self._lost_part or (
+            parts_now is not None and self._parts_at_start is not None
+            and parts_now > self._parts_at_start)
+        if parts_gone:
+            severity = "heavy"
+        elif worst >= 2:
+            severity = "medium"
+        elif worst == 1 and self._max_impact >= self.LIGHT_MIN_IMPACT:
+            severity = "light"
+        else:
+            severity = None  # a touch: nothing visible, say nothing
+        logger.info("incident: zones %s -> %s, impact %.0f, parts %s -> %s => %s",
+                    start, zones, self._max_impact, self._parts_at_start, parts_now, severity)
+        return severity
 
     def _maybe_report(self, status: dict) -> None:
         if self._pending_since is None or time.monotonic() - self._pending_since < self.SETTLE:
@@ -384,7 +409,9 @@ class Engineer:
             self._reported_rank = rank
             self._quiet_until = time.monotonic() + self.QUIET
         self._pending_since = None
-        self._dents_at_start = None
+        self._zones_at_start = None
+        self._parts_at_start = None
+        self._max_impact = 0.0
         self._tyre = None
         self._lost_part = False
         self._susp_hit = set()

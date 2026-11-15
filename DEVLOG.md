@@ -564,6 +564,27 @@ Personal best."), and there's a choice of voices including British ones.
 
 ---
 
+## 2026-11-15 (later still): Measured while driving
+
+Tate drove while a probe recorded the live stream. The distance fix held
+(frozen frames 90% → 1%), but the stream ran at **15 frames/s with a
+595 ms stall**, which was the real lag. Two causes:
+
+1. **Windows timer resolution.** `sleep(0.02)` lasts ~31 ms on Windows
+   (15.6 ms timer steps), and the loop slept a fixed interval *after* its
+   work, so 50 Hz drifted toward 30 Hz. Fix: `timeBeginPeriod(1)` plus
+   deadline-based pacing.
+2. **Disk writes in the real-time loop.** Every finished lap, the player's
+   or any rival's, was compressed, written and pruned inside the 50 Hz loop.
+   With a full grid, someone finishes a lap every few seconds, and each save
+   froze the feed. Fix: completed laps go to a writer thread.
+
+Result on a test engine: 47 frames/s, worst gap 48 ms while saving a lap.
+**Lesson: never do I/O on a real-time path, and on Windows never trust
+sleep() to mean what it says.**
+
+---
+
 ## Design principles that emerged (running list)
 
 1. **Wall off what varies.** One adapter per sim; everything else is shared.

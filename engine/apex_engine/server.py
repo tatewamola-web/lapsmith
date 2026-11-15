@@ -12,6 +12,7 @@ layer only ever reads the latest frame snapshot.
 from __future__ import annotations
 
 import asyncio
+import queue
 import json
 import logging
 import threading
@@ -42,7 +43,13 @@ class Engine:
     def __init__(self, adapter_name: str, data_dir: Path):
         self.adapter_name = adapter_name
         self.store = LapStore(data_dir)
-        self.recorder = LapRecorder(on_lap=self._on_lap)
+        # Saving a lap (compress ~5,000 x 13 samples, write, SQL, prune) takes
+        # tens to hundreds of ms. Done inside the 50 Hz loop it froze the live
+        # feed every time anyone on track finished a lap, so completed laps
+        # are handed to a writer thread instead.
+        self._jobs: "queue.Queue" = queue.Queue()
+        threading.Thread(target=self._writer, daemon=True, name="lap-writer").start()
+        self.recorder = LapRecorder(on_lap=lambda lap: self._jobs.put((self._on_lap, (lap,))))
         self.latest: Optional[TelemetryFrame] = None
         self.session: SessionContext = SessionContext()
         self.session_id: Optional[int] = None
@@ -176,7 +183,7 @@ class Engine:
                     session_type=self.session.session_type,
                 )
                 rec = LapRecorder(
-                    on_lap=lambda lap, d=driver: self._on_opponent_lap(lap, d))
+                    on_lap=lambda lap, d=driver: self._jobs.put((self._on_opponent_lap, (lap, d))))
                 rec.set_context(ctx)
                 self._opponents[slot_id] = rec
             self._opponent_meta[slot_id] = (driver, car)
@@ -206,10 +213,19 @@ class Engine:
         logger.info("opponent lap: %s %.3f (id=%d, pruned %d)",
                     driver, lap.lap_time, lap_id, pruned)
 
+    def _writer(self):
+        while True:
+            fn, args = self._jobs.get()
+            try:
+                fn(*args)
+            except Exception:
+                logger.exception("lap writer error")
+
     def _run(self):
         adapter = get_adapter(self.adapter_name)
         interval = 1.0 / adapter.rate_hz
         session_refresh = 0.0
+        next_tick = time.monotonic()
         while not self._stop.is_set():
             if not self.connected:
                 if adapter.connect():
@@ -245,7 +261,14 @@ class Engine:
                 self._feed_opponents(adapter)
                 if frame is not None:
                     self._assist(adapter, frame)
-                time.sleep(interval)
+                # steady 50 Hz: sleep until the next tick rather than a fixed
+                # interval after the work (which drifted to ~30 Hz)
+                next_tick += interval
+                delay = next_tick - time.monotonic()
+                if delay > 0:
+                    time.sleep(delay)
+                else:
+                    next_tick = time.monotonic()  # fell behind: don't spiral
             except Exception:
                 logger.exception("engine loop error; reconnecting")
                 adapter.disconnect()
@@ -323,7 +346,7 @@ def create_app(adapter_name: str = "sim", data_dir: Path = Path("data")) -> Fast
                         "frame": frame.to_dict(),
                         "session": session.to_dict(),
                     }))
-                await asyncio.sleep(0.02)  # 50 Hz: match the sim's own rate
+                await asyncio.sleep(0.008)  # check often; only new frames are sent
         except WebSocketDisconnect:
             pass
 

@@ -43,6 +43,15 @@ def main():
     if args.skill is not None:
         os.environ["APEX_SIM_SKILL"] = str(args.skill)
 
+    # Windows sleeps in ~15.6 ms steps by default, which made a 20 ms wait
+    # last ~31 ms and capped the live feed far below 50 Hz. Ask for 1 ms.
+    if os.name == "nt":
+        try:
+            import ctypes
+            ctypes.windll.winmm.timeBeginPeriod(1)
+        except Exception:
+            pass
+
     from .server import create_app
     import uvicorn
 

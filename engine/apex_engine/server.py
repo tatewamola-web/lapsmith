@@ -97,7 +97,7 @@ class Engine:
         # Announce the lap like the game's engineer does (before saving, so
         # "personal best" compares against the previous best).
         vs = self.widget_settings().get("voice", {})
-        if vs.get("enabled") and vs.get("laptimes", True) and lap.valid:
+        if vs.get("enabled") and vs.get("laptimes", False) and lap.valid:
             prev = self.store.personal_best(lap.context.game, lap.context.track,
                                             car_class=lap.context.car_class,
                                             car=lap.context.car)
@@ -349,7 +349,7 @@ def create_app(adapter_name: str = "sim", data_dir: Path = Path("data")) -> Fast
                         "frame": frame.to_dict(),
                         "session": session.to_dict(),
                     }))
-                await asyncio.sleep(0.008)  # check often; only new frames are sent
+                await asyncio.sleep(0.004)  # check often; only new frames are sent
         except WebSocketDisconnect:
             pass
 

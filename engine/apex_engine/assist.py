@@ -211,24 +211,49 @@ class Engineer:
         self._max_pressure = [0.0] * 4
         self._leak_warned = [False] * 4
         self._last_fuel_level = None  # which warning tier was last spoken
-        self._events: dict[str, str] = {}
         self._pending_since: Optional[float] = None
         self._quiet_until = 0.0
-        self._reported_prio = -1
+        self._reported_rank = -1
         self._dents_at_start: Optional[int] = None
+        self._wheel: Optional[tuple[str, int]] = None
+        self._lost_part = False
+        voice.prewarm(self.all_reports())
 
     # Incident handling: a crash produces a burst of raw events (every bounce
-    # adds dents, parts come off, a tyre goes). Collect them for a moment,
-    # then say ONE thing: the worst problem, plus a second if it matters.
-    SETTLE = 1.5      # s to wait after the first event before speaking
-    QUIET = 12.0      # s after a report: only a worse problem may speak
-
-    # priority (higher = more important), message
-    _PRIO = {"wheel": 5, "flat": 4, "heavy": 3, "part": 2, "leak": 2, "hot": 1, "contact": 0}
+    # adds dents, parts come off, a tyre goes). Collect them briefly, then
+    # say ONE short sentence, pre-synthesized so it plays instantly.
+    SETTLE = 0.6      # s after the first event: long enough to merge bounces
+    QUIET = 10.0      # s after a report: only a worse problem may speak
 
     def incident_active(self) -> bool:
         """True during a crash and shortly after — the spotter stays quiet."""
         return time.monotonic() < self._quiet_until or self._pending_since is not None
+
+    @staticmethod
+    def report_text(wheel: Optional[tuple[str, int]], severity: Optional[str]) -> str:
+        """('flat', 0), 'heavy' -> 'Puncture front left, heavy damage. Box this lap.'"""
+        parts = []
+        if wheel:
+            kind, i = wheel
+            parts.append(f"lost the {_WHEELS[i]} wheel" if kind == "wheel" else f"puncture {_WHEELS[i]}")
+        if severity:
+            parts.append(f"{severity} damage")
+        text = ", ".join(parts)
+        text = text[0].upper() + text[1:] + "."
+        if wheel or severity == "heavy":
+            text += " Box this lap."
+        return text
+
+    @classmethod
+    def all_reports(cls) -> list[str]:
+        """Every sentence an incident can produce — synthesized at startup
+        so a crash report never waits on speech generation."""
+        sevs = [None, "light", "medium", "heavy"]
+        out = [cls.report_text(None, s) for s in sevs[1:]]
+        for kind in ("wheel", "flat"):
+            for i in range(4):
+                out += [cls.report_text((kind, i), s) for s in sevs]
+        return out
 
     def on_frame(self, frame, status: Optional[dict]) -> None:
         if status is None:
@@ -241,9 +266,9 @@ class Engineer:
 
         for i in range(4):
             if status["wheel_detached"][i] and not prev["wheel_detached"][i]:
-                self._event("wheel", f"you've lost the {_WHEELS[i]} wheel")
+                self._incident(wheel=("wheel", i))
             elif status["flat"][i] and not prev["flat"][i]:
-                self._event("flat", f"puncture {_WHEELS[i]}")
+                self._incident(wheel=("flat", i))
 
         if frame.speed > 20 and self._pending_since is None:
             for i, kpa in enumerate(status["pressure"]):
@@ -252,55 +277,53 @@ class Engineer:
                 if (peak > 100 and kpa < peak * 0.8 and not status["flat"][i]
                         and not self._leak_warned[i]):
                     self._leak_warned[i] = True
-                    self._event("leak", f"you're losing pressure in the {_WHEELS[i]}")
+                    self.voice.say(f"Losing pressure, {_WHEELS[i]}. Might be a slow puncture.")
 
-        if status["parts_detached"] and not prev["parts_detached"]:
-            self._event("part", "you've lost a part")
-        if status["dents"] > prev["dents"]:
+        if status["dents"] > prev["dents"] or (status["parts_detached"] and not prev["parts_detached"]):
             if self._dents_at_start is None:
                 self._dents_at_start = prev["dents"]
-            total = status["dents"] - self._dents_at_start
-            heavy = status["dents"] >= 6 or total >= 3
-            self._event("heavy" if heavy else "contact", "heavy damage" if heavy else "")
+            self._incident()
+            if status["parts_detached"] and not prev["parts_detached"]:
+                self._lost_part = True
 
         if status["overheating"] and not prev["overheating"]:
-            self._event("hot", "engine's running hot")
+            self.voice.say("Engine's running hot.")
 
-        self._maybe_report()
+        self._maybe_report(status)
 
-    def _event(self, kind: str, detail: str) -> None:
-        now = time.monotonic()
-        prio = self._PRIO[kind]
-        # inside the quiet window, only something worse than what was
-        # already reported gets through
-        if now < self._quiet_until and prio <= self._reported_prio:
-            return
+    def _incident(self, wheel: Optional[tuple[str, int]] = None) -> None:
         if self._pending_since is None:
-            self._pending_since = now
-        self._events[kind] = detail
+            self._pending_since = time.monotonic()
+        if wheel and (self._wheel is None or wheel[0] == "wheel"):
+            self._wheel = wheel  # a lost wheel outranks a puncture
 
-    def _maybe_report(self) -> None:
+    def _severity(self, status: dict) -> Optional[str]:
+        if self._dents_at_start is None and not self._lost_part:
+            return None
+        start = status["dents"] if self._dents_at_start is None else self._dents_at_start
+        gained = status["dents"] - start
+        if gained >= 5 or status["dents"] >= 8:
+            return "heavy"
+        if gained >= 3 or self._lost_part:
+            return "medium"
+        return "light"
+
+    _RANK = {None: 0, "light": 1, "medium": 2, "heavy": 3}
+
+    def _maybe_report(self, status: dict) -> None:
         if self._pending_since is None or time.monotonic() - self._pending_since < self.SETTLE:
             return
-        ev = sorted(self._events.items(), key=lambda kv: -self._PRIO[kv[0]])
-        top_kind, top_detail = ev[0]
-        phrases = {
-            "contact": "Contact. Some damage, nothing serious.",
-            "heavy": "That's heavy damage.",
-            "hot": "Engine's running hot.",
-        }
-        msg = phrases.get(top_kind) or (top_detail[0].upper() + top_detail[1:] + ".")
-        # one extra fact if it's a different, serious problem
-        if len(ev) > 1 and self._PRIO[ev[1][0]] >= 2 and ev[1][1]:
-            msg = msg.rstrip(".") + f", and {ev[1][1]}."
-        if self._PRIO[top_kind] >= 4 or "heavy" in self._events:
-            msg += " Box this lap."
-        self.voice.say(msg)
-        self._reported_prio = self._PRIO[top_kind]
-        self._quiet_until = time.monotonic() + self.QUIET
-        self._events = {}
+        severity = self._severity(status)
+        rank = self._RANK[severity] + (10 if self._wheel else 0)
+        # within the quiet window only something worse than the last report speaks
+        if time.monotonic() >= self._quiet_until or rank > self._reported_rank:
+            self.voice.say(self.report_text(self._wheel, severity), urgent=True)
+            self._reported_rank = rank
+            self._quiet_until = time.monotonic() + self.QUIET
         self._pending_since = None
         self._dents_at_start = None
+        self._wheel = None
+        self._lost_part = False
 
     def _on_new_lap(self, frame, status: dict) -> None:
         fuel = status["fuel"]

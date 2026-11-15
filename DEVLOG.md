@@ -595,6 +595,22 @@ than it publishes, and deduplicate.**
 
 ---
 
+## 2026-11-15 (end of night): Faster, plainer damage calls
+
+After a wall hit, the engineer took a few seconds to speak. Three delays
+stacked up: a 1.5 s wait for the crash to finish, synthesizing a sentence
+nobody had heard before, and queueing behind any callout already playing.
+Now the wait is 0.6 s, every possible damage sentence (35 of them) is
+synthesized at startup so it plays instantly, and damage reports interrupt
+coaching. Wording is plainer too, per Tate: light, medium, or heavy damage,
+plus the puncture or lost wheel if there is one ("Puncture front left,
+heavy damage. Box this lap."). A test also caught a real bug: crashes that
+started from an undamaged car were always called "light", because a
+starting value of 0 was treated as "no value" (`0 or x` in Python).
+Lap-time announcements now default off; LMU already reads them out.
+
+---
+
 ## Design principles that emerged (running list)
 
 1. **Wall off what varies.** One adapter per sim; everything else is shared.

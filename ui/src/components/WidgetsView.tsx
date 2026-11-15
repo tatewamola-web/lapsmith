@@ -21,7 +21,7 @@ type Name = "delta" | "telemetry" | "callouts";
 
 const DEFAULTS: Settings = {
   general: { autohide: true },
-  voice: { enabled: false, voice: "ryan", laptimes: true, callouts: true, engineer: true, spotter: false },
+  voice: { enabled: false, voice: "ryan", laptimes: false, callouts: true, engineer: true, spotter: false },
   delta: { enabled: false, range: 1.0, ref: "fastest", showBar: true, showNumber: true },
   telemetry: {
     enabled: false, ref: "fastest",
@@ -149,7 +149,7 @@ export default function WidgetsView() {
             <option value="northern">Northern English</option>
           </select>
         </label>
-        <Check label="Lap times" checked={s.voice.laptimes} onChange={(v) => set("voice", { laptimes: v })} />
+        <Check label="Lap times (LMU already reads these)" checked={s.voice.laptimes} onChange={(v) => set("voice", { laptimes: v })} />
         <Check label="Speak corner callouts" checked={s.voice.callouts} onChange={(v) => set("voice", { callouts: v })} />
         <Check label="Engineer — fuel, punctures, damage" checked={s.voice.engineer} onChange={(v) => set("voice", { engineer: v })} />
         <Check label="Spotter (beta) — car left / right / clear" checked={s.voice.spotter} onChange={(v) => set("voice", { spotter: v })} />
@@ -202,7 +202,7 @@ export default function WidgetsView() {
         <Check label="Trace" checked={s.telemetry.trace} onChange={(v) => set("telemetry", { trace: v })} />
         <Check label="Pedals" checked={s.telemetry.inputs} onChange={(v) => set("telemetry", { inputs: v })} />
         <Check label="Gear + revs" checked={s.telemetry.gear} onChange={(v) => set("telemetry", { gear: v })} />
-        <Check label="Lap times" checked={s.telemetry.times} onChange={(v) => set("telemetry", { times: v })} />
+        <Check label="Lap times (LMU already reads these)" checked={s.telemetry.times} onChange={(v) => set("telemetry", { times: v })} />
         <Check label="Horizontal layout" checked={s.telemetry.horizontal} onChange={(v) => set("telemetry", { horizontal: v })} />
       </Card>
     </div>

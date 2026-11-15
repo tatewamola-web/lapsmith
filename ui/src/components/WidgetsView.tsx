@@ -8,7 +8,7 @@ type RefMode = "fastest" | "pb";
 
 interface Settings {
   general: { autohide: boolean };
-  voice: { enabled: boolean; callouts: boolean; engineer: boolean; spotter: boolean };
+  voice: { enabled: boolean; voice: string; laptimes: boolean; callouts: boolean; engineer: boolean; spotter: boolean };
   delta: { enabled: boolean; range: number; ref: RefMode; showBar: boolean; showNumber: boolean };
   telemetry: {
     enabled: boolean; ref: RefMode;
@@ -21,7 +21,7 @@ type Name = "delta" | "telemetry" | "callouts";
 
 const DEFAULTS: Settings = {
   general: { autohide: true },
-  voice: { enabled: false, callouts: true, engineer: true, spotter: false },
+  voice: { enabled: false, voice: "ryan", laptimes: true, callouts: true, engineer: true, spotter: false },
   delta: { enabled: false, range: 1.0, ref: "fastest", showBar: true, showNumber: true },
   telemetry: {
     enabled: false, ref: "fastest",
@@ -141,6 +141,15 @@ export default function WidgetsView() {
         title="Voice"
         desc="A race-engineer voice through your speakers or headset: coaching, car health, and a spotter. Runs locally with a neural voice, no internet. Works whether or not any widget is open."
       >
+        <label className="wset">
+          <span>Voice</span>
+          <select value={s.voice.voice} onChange={(e) => set("voice", { voice: e.target.value })}>
+            <option value="ryan">Ryan — American</option>
+            <option value="alan">Alan — British</option>
+            <option value="northern">Northern English</option>
+          </select>
+        </label>
+        <Check label="Lap times" checked={s.voice.laptimes} onChange={(v) => set("voice", { laptimes: v })} />
         <Check label="Speak corner callouts" checked={s.voice.callouts} onChange={(v) => set("voice", { callouts: v })} />
         <Check label="Engineer — fuel, punctures, damage" checked={s.voice.engineer} onChange={(v) => set("voice", { engineer: v })} />
         <Check label="Spotter (beta) — car left / right / clear" checked={s.voice.spotter} onChange={(v) => set("voice", { spotter: v })} />

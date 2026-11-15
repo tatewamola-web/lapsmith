@@ -29,7 +29,7 @@ from .recorder import LapRecorder
 from .schema import TelemetryFrame, SessionContext
 from .assist import CalloutSpeaker, Engineer, Spotter
 from .storage import LapStore
-from .voice import Voice
+from .voice import Voice, speakable_laptime
 
 logger = logging.getLogger(__name__)
 
@@ -87,6 +87,17 @@ class Engine:
                                or self.store.start_session(lap.context))
             logger.info("session #%d: %s / %s", self.session_id,
                         lap.context.track, lap.context.car)
+        # Announce the lap like the game's engineer does (before saving, so
+        # "personal best" compares against the previous best).
+        vs = self.widget_settings().get("voice", {})
+        if vs.get("enabled") and vs.get("laptimes", True) and lap.valid:
+            prev = self.store.personal_best(lap.context.game, lap.context.track,
+                                            car_class=lap.context.car_class,
+                                            car=lap.context.car)
+            msg = speakable_laptime(lap.lap_time) + "."
+            if prev is None or lap.lap_time < prev["lap_time"]:
+                msg += " Personal best."
+            self.voice.say(msg)
         # Store every completed lap, even invalid ones (flagged, filtered in UI).
         lap_id = self.store.save_lap(lap, session_id=self.session_id)
         self.laps_recorded += 1
@@ -132,6 +143,7 @@ class Engine:
             vs = self.widget_settings().get("voice", {})
             if not vs.get("enabled"):
                 return
+            self.voice.set_voice(vs.get("voice", "ryan"))
             if vs.get("callouts", True):
                 lead = float(self.widget_settings().get("callouts", {}).get("lead", 250))
                 self.callout_speaker.on_frame(frame, self.session, lead)
@@ -413,7 +425,8 @@ def create_app(adapter_name: str = "sim", data_dir: Path = Path("data")) -> Fast
     def voice_test():
         if not engine.voice.available:
             return {"ok": False, "error": "voice model missing (data/voices)"}
-        engine.voice.say("Radio check. Turn one, brake a touch later, then throttle sooner.")
+        engine.voice.set_voice(engine.widget_settings().get("voice", {}).get("voice", "ryan"))
+        engine.voice.say("One seventeen point three. Personal best. Turn one, brake a touch later.")
         return {"ok": True}
 
     @app.get("/api/ideal")

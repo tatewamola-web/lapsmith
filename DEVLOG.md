@@ -538,6 +538,32 @@ car emits.**
 
 ---
 
+## 2026-11-15 (late): The 5 Hz distance bug
+
+The live delta flickered between plus and minus and the input trace
+skipped. Measured on a recorded lap: in **90% of frames the car's lap
+distance didn't move at all**, then it jumped ~9 m. LMU publishes lap
+distance in its scoring buffer, which only updates about five times a
+second, while everything else arrives at 50 Hz. Lap time kept ticking while
+distance froze, so the delta sawed by ~0.18 s every fifth of a second.
+Recorded laps had silently been losing distance resolution the same way
+since day one.
+
+Fix: the scoring snapshot is stamped with the time it describes, so the
+adapter advances that distance by speed × elapsed time for every telemetry
+frame (never backwards within a lap). On a simulated car the error went from
+10.8 m to zero.
+**Lesson: when two data streams update at different rates, every value
+computed from both inherits the slower rate unless you interpolate it.**
+This is the same lesson as day two's scoring-lag bug, found again in a new
+place.
+
+Also: the delta number is now green only when actually ahead of the
+reference; the engineer reads lap times ("One seventeen point three.
+Personal best."), and there's a choice of voices including British ones.
+
+---
+
 ## Design principles that emerged (running list)
 
 1. **Wall off what varies.** One adapter per sim; everything else is shared.

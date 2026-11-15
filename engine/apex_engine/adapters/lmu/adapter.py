@@ -45,6 +45,8 @@ class LMUAdapter(BaseAdapter):
         self._last_version = -1
         # previous per-wheel brake pressures by slot id, for ABS detection
         self._prev_bp: dict = {}
+        # last smoothed lap distance by slot id (kept monotonic within a lap)
+        self._prev_dist: dict = {}
 
     # -- BaseAdapter --------------------------------------------------
 
@@ -105,6 +107,29 @@ class LMUAdapter(BaseAdapter):
             return None
         return self._build_frame(tele_v, scor_v)
 
+    def _smooth_dist(self, tele_v, scor_v, speed: float) -> float:
+        """Lap distance at telemetry rate.
+
+        LMU publishes lap distance in the scoring buffer, which updates only
+        ~5x per second: 90% of 50 Hz frames repeated a stale value and then
+        jumped ~9 m. That made the live delta saw back and forth, the input
+        trace skip, and recorded laps lose resolution. The scoring snapshot
+        is stamped with the time it describes (mCurrentET), so advance it by
+        speed x (now - then) to get the distance for THIS frame.
+        """
+        raw = max(float(scor_v.mLapDist), 0.0)
+        age = float(tele_v.mElapsedTime) - float(self._scor.data.mScoringInfo.mCurrentET)
+        est = raw + speed * min(max(age, 0.0), 0.5)
+        key = int(tele_v.mID)
+        prev = self._prev_dist.get(key)
+        lap = int(tele_v.mLapNumber)
+        # never run backwards within a lap (a fresh scoring sample can land
+        # slightly behind the extrapolation); a new lap resets it
+        if prev is not None and prev[0] == lap and est < prev[1] and prev[1] - est < 30:
+            est = prev[1]
+        self._prev_dist[key] = (lap, est)
+        return est
+
     def _build_frame(self, tele_v, scor_v) -> TelemetryFrame:
         # ABS detection: pedal held but wheel brake pressures fluttering —
         # that flutter IS the ABS modulating.
@@ -128,7 +153,7 @@ class LMUAdapter(BaseAdapter):
             timestamp=float(tele_v.mElapsedTime),
             lap_number=int(tele_v.mLapNumber),
             lap_time=lap_time,
-            lap_dist=max(float(scor_v.mLapDist), 0.0),
+            lap_dist=self._smooth_dist(tele_v, scor_v, speed),
             pos_x=float(tele_v.mPos.x),
             pos_y=float(tele_v.mPos.y),
             pos_z=float(tele_v.mPos.z),

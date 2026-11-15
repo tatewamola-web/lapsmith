@@ -33,6 +33,34 @@ _NUMBERS = ["zero", "one", "two", "three", "four", "five", "six", "seven", "eigh
             "sixteen", "seventeen", "eighteen", "nineteen", "twenty"]
 
 
+VOICES = {
+    "ryan": "en_US-ryan-high.onnx",                                    # US male
+    "alan": "en_GB-alan-medium.onnx",                                  # British male
+    "northern": "en_GB-northern_english_male-medium.onnx",             # Northern English male
+}
+
+_TENS = {2: "twenty", 3: "thirty", 4: "forty", 5: "fifty"}
+
+
+def _words(n: int) -> str:
+    """0-59 in words (enough for lap-time minutes and seconds)."""
+    if n < 20:
+        return _NUMBERS[n]
+    t, u = divmod(n, 10)
+    return _TENS[t] + ("" if u == 0 else f"-{_NUMBERS[u]}")
+
+
+def speakable_laptime(seconds: float) -> str:
+    """77.327 -> 'One seventeen point three' — how an engineer reads a lap
+    time on the radio (minutes, seconds, tenths)."""
+    tenths = int(round(seconds * 10))
+    m, rest = divmod(tenths, 600)
+    s, t = divmod(rest, 10)
+    sec = _words(s) if s >= 10 else f"oh {_words(s)}"
+    out = f"{_words(m)} {sec} point {_words(t)}" if m else f"{_words(s)} point {_words(t)}"
+    return out[0].upper() + out[1:]
+
+
 def _num(n: str) -> str:
     try:
         i = int(n)
@@ -73,7 +101,8 @@ def speakable_callout(corner: str, text: str) -> str:
 
 class Voice:
     def __init__(self, data_dir: Path, model: str = DEFAULT_MODEL):
-        self.model_path = Path(data_dir) / "voices" / model
+        self.voices_dir = Path(data_dir) / "voices"
+        self.model_path = self.voices_dir / model
         self.cache_dir = Path(data_dir) / "voice_cache"
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         self._q: "queue.PriorityQueue[tuple[int, float, str]]" = queue.PriorityQueue()
@@ -103,6 +132,21 @@ class Voice:
             self._drain()
             self._interrupt.set()
         self._q.put((0 if urgent else 1, time.monotonic(), text))
+
+    def set_voice(self, name: str) -> None:
+        """Switch voice (key of VOICES). The cache is per voice, so cached
+        phrases from the old voice are simply not used."""
+        model = VOICES.get(name)
+        if not model or self.model_path.name == model:
+            return
+        if not (self.voices_dir / model).exists():
+            logger.warning("voice %s not downloaded", model)
+            return
+        with self._lock:
+            self.model_path = self.voices_dir / model
+            self._voice = None
+            self._ok = None
+        logger.info("voice: switched to %s", model)
 
     def prewarm(self, phrases: list[str]) -> None:
         """Synthesize phrases into the cache ahead of time (background)."""
@@ -150,7 +194,8 @@ class Voice:
         return self._ok
 
     def _wav_for(self, text: str) -> Optional[Path]:
-        path = self.cache_dir / (hashlib.sha1(text.encode()).hexdigest()[:16] + ".wav")
+        key = f"{self.model_path.stem}|{text}"
+        path = self.cache_dir / (hashlib.sha1(key.encode()).hexdigest()[:16] + ".wav")
         if path.exists():
             return path
         with self._lock:

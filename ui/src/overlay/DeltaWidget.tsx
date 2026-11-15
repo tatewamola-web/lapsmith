@@ -1,8 +1,7 @@
 // iRacing-style delta bar: live time gap to the reference lap at the car's
 // current track position. The bar fills from the center — green to the
-// left when you're ahead, red to the right when you're behind — and the
-// number's color shows the TREND: green while you're gaining right now,
-// red while you're losing, even if you're still behind overall.
+// left when you're ahead, red to the right when you're behind; the number
+// is green only while you're actually up on the reference.
 
 import { useEffect, useRef, useState } from "react";
 import type { LiveFrame } from "../api";
@@ -53,7 +52,8 @@ export default function DeltaWidget() {
   }, [delta]);
 
   const frac = delta == null ? 0 : Math.max(-1, Math.min(1, delta / cfg.range));
-  const numColor = delta == null ? "#8b949e" : trend < -0.005 ? "#3fb950" : trend > 0.005 ? "#f85149" : "#e8eaed";
+  // green only when you're actually up on the reference, red when down
+  const numColor = delta == null ? "#8b949e" : delta < 0 ? "#3fb950" : "#f85149";
 
   return (
     <div className={`dw ${onTrack || !hideInMenus(settings) ? "" : "faded"}`}>

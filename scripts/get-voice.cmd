@@ -1,9 +1,14 @@
 @echo off
-rem Downloads Lapsmith's race-engineer voice (Piper "Ryan", ~120 MB) into
-rem data\voices. Only needed once, on a fresh install.
+rem Downloads Lapsmith's engineer voices (Piper neural TTS) into data\voices.
+rem Only needed once, on a fresh install.
 if not exist "%~dp0..\data\voices" mkdir "%~dp0..\data\voices"
-set BASE=https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/ryan/high
-curl -L -o "%~dp0..\data\voices\en_US-ryan-high.onnx" %BASE%/en_US-ryan-high.onnx
-curl -L -o "%~dp0..\data\voices\en_US-ryan-high.onnx.json" %BASE%/en_US-ryan-high.onnx.json
-echo Voice installed.
+set B=https://huggingface.co/rhasspy/piper-voices/resolve/main/en
+set D=%~dp0..\data\voices
+for %%V in (en_US/ryan/high/en_US-ryan-high en_GB/alan/medium/en_GB-alan-medium en_GB/northern_english_male/medium/en_GB-northern_english_male-medium) do (
+  for %%F in (%%~nxV) do (
+    curl -L -o "%D%\%%F.onnx" %B%/%%V.onnx
+    curl -L -o "%D%\%%F.onnx.json" %B%/%%V.onnx.json
+  )
+)
+echo Voices installed.
 pause

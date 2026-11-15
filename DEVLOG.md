@@ -475,6 +475,19 @@ of assuming it.**
 
 ---
 
+## 2026-11-15: "On" has to mean on
+
+First real session with widgets after a restart: the hub showed Delta and
+Input Trace switched on, but nothing appeared in game. "Enabled" was only a
+saved preference. Windows opened when the switch was flipped, and nothing
+reopened them after a reboot. The engine now relaunches every enabled
+widget a few seconds after it starts, so the switch describes what's
+actually on screen.
+**Lesson: a setting that only takes effect on the moment it's changed is a
+button pretending to be a switch.**
+
+---
+
 ## Design principles that emerged (running list)
 
 1. **Wall off what varies.** One adapter per sim; everything else is shared.

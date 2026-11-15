@@ -252,6 +252,18 @@ def create_app(adapter_name: str = "sim", data_dir: Path = Path("data")) -> Fast
     @app.on_event("startup")
     def _startup():
         engine.start()
+
+        # "On" in the hub means on: re-open enabled widgets every time the
+        # engine starts, instead of leaving them as a setting with no window.
+        # Delayed so the server is accepting connections when they load.
+        def _reopen_widgets():
+            time.sleep(4)
+            for name in WIDGET_NAMES:
+                if _read_widgets().get(name, {}).get("enabled"):
+                    result = launch_widget(name)
+                    logger.info("widget %s reopened: %s", name, result)
+                    time.sleep(2)  # first launch starts the host; let it settle
+        threading.Thread(target=_reopen_widgets, daemon=True, name="widgets").start()
         # Pull historical lap times from the game's own result logs so old
         # PBs exist from the first launch. Idempotent, so safe every start.
         if adapter_name == "lmu":
@@ -391,8 +403,7 @@ def create_app(adapter_name: str = "sim", data_dir: Path = Path("data")) -> Fast
         result = engine.store.ideal_lap(game, track, car_class=car_class, car=car)
         return result if result else Response(status_code=404)
 
-    @app.post("/api/overlay/launch")
-    def overlay_launch(widget: str = "telemetry"):
+    def launch_widget(widget: str) -> dict:
         """Open a widget window (same machine as the engine). One Electron
         host process serves every widget; a second launch just adds or
         reloads that widget's window."""
@@ -411,6 +422,10 @@ def create_app(adapter_name: str = "sim", data_dir: Path = Path("data")) -> Fast
         subprocess.Popen([str(electron), str(script), f"--widget={widget}"],
                          cwd=str(root / "ui"))
         return {"ok": True}
+
+    @app.post("/api/overlay/launch")
+    def overlay_launch(widget: str = "telemetry"):
+        return launch_widget(widget)
 
     # Widget settings live in the engine, not browser storage: the web UI and
     # the Electron widget windows don't share localStorage, but both talk to

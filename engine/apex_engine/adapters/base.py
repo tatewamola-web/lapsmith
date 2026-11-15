@@ -22,6 +22,11 @@ class BaseAdapter(ABC):
     game_title: str = "Unknown"
     #: target polling rate in Hz
     rate_hz: float = 50.0
+    #: how often the engine checks for a new frame. Sims that PUBLISH at
+    #: rate_hz should be checked faster than that — sampling a 50 Hz source
+    #: at 50 Hz drifts in and out of phase, reading some frames twice and
+    #: skipping others. Adapters whose poll() advances time keep rate_hz.
+    poll_hz: float = 50.0
 
     @abstractmethod
     def connect(self) -> bool:

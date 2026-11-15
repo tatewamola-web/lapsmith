@@ -38,6 +38,7 @@ class LMUAdapter(BaseAdapter):
     name = "lmu"
     game_title = "Le Mans Ultimate"
     rate_hz = 50.0
+    poll_hz = 200.0  # LMU publishes at 50 Hz; check 4x per frame, act once
 
     def __init__(self):
         self._tele: Optional[MMapControl] = None

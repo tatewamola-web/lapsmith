@@ -583,6 +583,16 @@ Result on a test engine: 47 frames/s, worst gap 48 ms while saving a lap.
 **Lesson: never do I/O on a real-time path, and on Windows never trust
 sleep() to mean what it says.**
 
+Measured again on the live session: 29 frames/s. Better, but still short.
+Sampling LMU at 2 ms showed it publishes exactly 50 frames/s, and the
+engine also read at 50 Hz, so the two clocks drifted in and out of phase:
+some frames were read twice, others skipped entirely (aliasing). The
+engine now checks LMU at 200 Hz and only processes a frame when its
+timestamp is new. Live result: **46 frames/s, worst gap 62 ms**, up from
+15 frames/s and 595 ms at the start of the evening.
+**Lesson: to capture every sample of a periodic source, poll it faster
+than it publishes, and deduplicate.**
+
 ---
 
 ## Design principles that emerged (running list)

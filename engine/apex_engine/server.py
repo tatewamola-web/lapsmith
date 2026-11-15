@@ -223,9 +223,10 @@ class Engine:
 
     def _run(self):
         adapter = get_adapter(self.adapter_name)
-        interval = 1.0 / adapter.rate_hz
+        interval = 1.0 / adapter.poll_hz
         session_refresh = 0.0
         next_tick = time.monotonic()
+        last_ts = None
         while not self._stop.is_set():
             if not self.connected:
                 if adapter.connect():
@@ -254,12 +255,14 @@ class Engine:
                         self.session = ctx
                     self.recorder.set_context(ctx)
                 frame = adapter.poll()
-                if frame is not None:
+                # only a frame the sim has newly published does any work;
+                # repeat reads of the same frame are skipped
+                if frame is not None and frame.timestamp != last_ts:
+                    last_ts = frame.timestamp
                     self.recorder.feed(frame)
                     with self._lock:
                         self.latest = frame
-                self._feed_opponents(adapter)
-                if frame is not None:
+                    self._feed_opponents(adapter)
                     self._assist(adapter, frame)
                 # steady 50 Hz: sleep until the next tick rather than a fixed
                 # interval after the work (which drifted to ~30 Hz)

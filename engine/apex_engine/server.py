@@ -27,7 +27,7 @@ from . import analysis
 from .adapters import get_adapter
 from .recorder import LapRecorder
 from .schema import TelemetryFrame, SessionContext
-from .assist import CalloutSpeaker, Spotter
+from .assist import CalloutSpeaker, Engineer, Spotter
 from .storage import LapStore
 from .voice import Voice
 
@@ -54,6 +54,7 @@ class Engine:
         self.voice = Voice(self.data_dir)
         self.callout_speaker = CalloutSpeaker(self.voice, self.coach_for)
         self.spotter = Spotter(self.voice)
+        self.engineer = Engineer(self.voice)
         self.last_spotter = ""
         # One recorder per same-class opponent: their completed laps are
         # captured live from shared memory — real reference laps from
@@ -134,6 +135,8 @@ class Engine:
             if vs.get("callouts", True):
                 lead = float(self.widget_settings().get("callouts", {}).get("lead", 250))
                 self.callout_speaker.on_frame(frame, self.session, lead)
+            if vs.get("engineer", True):
+                self.engineer.on_frame(frame, adapter.car_status())
             if vs.get("spotter", False):
                 msg = self.spotter.on_frame(adapter.nearby())
                 if msg:
@@ -290,6 +293,7 @@ def create_app(adapter_name: str = "sim", data_dir: Path = Path("data")) -> Fast
             "live": frame is not None,
             "session": session.to_dict(),
             "laps_recorded": engine.laps_recorded,
+            "library_version": engine.store.version,
         }
 
     @app.websocket("/ws/live")
@@ -306,7 +310,7 @@ def create_app(adapter_name: str = "sim", data_dir: Path = Path("data")) -> Fast
                         "frame": frame.to_dict(),
                         "session": session.to_dict(),
                     }))
-                await asyncio.sleep(0.04)  # ~25 Hz to clients
+                await asyncio.sleep(0.02)  # 50 Hz: match the sim's own rate
         except WebSocketDisconnect:
             pass
 
@@ -316,10 +320,23 @@ def create_app(adapter_name: str = "sim", data_dir: Path = Path("data")) -> Fast
     def sessions():
         return engine.store.list_sessions()
 
+    # The full lap list is ~0.5 MB and ~150 ms to build; rebuilding it on
+    # every poll starved the live-telemetry thread (visible widget stutter).
+    # Cache the serialized response until the library actually changes.
+    _laps_cache: dict = {}
+
     @app.get("/api/laps")
     def laps(track: Optional[str] = None, car: Optional[str] = None,
              session: Optional[int] = None):
-        return engine.store.list_laps(track=track, car=car, session_id=session)
+        key = (track, car, session)
+        hit = _laps_cache.get(key)
+        if hit and hit[0] == engine.store.version:
+            return Response(content=hit[1], media_type="application/json")
+        body = json.dumps(engine.store.list_laps(track=track, car=car, session_id=session))
+        if len(_laps_cache) > 64:
+            _laps_cache.clear()
+        _laps_cache[key] = (engine.store.version, body)
+        return Response(content=body, media_type="application/json")
 
     @app.get("/api/pb")
     def pb(game: str, track: str, car: str = "", car_class: str = ""):

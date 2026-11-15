@@ -100,6 +100,7 @@ export interface Status {
   live: boolean;
   session: { game: string; track: string; car: string; car_class?: string; track_length: number; session_type: string };
   laps_recorded: number;
+  library_version?: number;
 }
 
 export async function getStatus(): Promise<Status> {

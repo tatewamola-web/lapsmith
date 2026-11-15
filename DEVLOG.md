@@ -488,6 +488,31 @@ button pretending to be a switch.**
 
 ---
 
+## 2026-11-15 (later): The stutter, and an engineer on the radio
+
+### Why the input trace got laggy
+Measured, not guessed: the engine's own per-frame work (reading every car,
+recording rivals, the spotter) totals under 0.3 ms against a 20 ms budget,
+so recording wasn't it. The culprit was the web app re-downloading the whole
+lap library every 3 seconds: 441 KB and ~156 ms of Python work per request,
+which starved the thread streaming frames to the widgets and caused a hitch
+every few seconds. It only appeared once the library passed a thousand laps.
+Fix: the library carries a version number, the server caches the serialized
+lap list until that version changes, and the app only re-fetches when it
+does. The live stream also went from 25 to 50 updates a second.
+**Lesson: in a real-time system, a slow request anywhere can become jank
+everywhere. Profile the whole process, not just the hot loop.**
+
+### Engineer voice
+The voice now reports the car's health: fuel warnings stepping down from
+"fuel for about three laps" to "fuel is critical, box this lap" (consumption
+averaged over the last three laps), punctures and slow leaks by corner of
+the car, lost wheels and parts, contact damage, and overheating. Each event
+is spoken once. The spotter gained "Still there, hold your line" while a car
+stays alongside, plus "hold your line" when three wide.
+
+---
+
 ## Design principles that emerged (running list)
 
 1. **Wall off what varies.** One adapter per sim; everything else is shared.

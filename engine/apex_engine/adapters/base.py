@@ -55,3 +55,7 @@ class BaseAdapter(ABC):
         """((x, z) of the player, [(x, z) of cars within radius]) or None.
         Optional — used by the spotter; sims without it just get no spotter."""
         return None
+
+    def car_status(self):
+        """Fuel / tyre / damage snapshot for the engineer voice, or None."""
+        return None

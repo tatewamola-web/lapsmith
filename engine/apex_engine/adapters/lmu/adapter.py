@@ -181,6 +181,28 @@ class LMUAdapter(BaseAdapter):
             out.append((int(sv.mID), _decode(sv.mDriverName), _decode(sv.mVehicleName), frame))
         return out
 
+    def car_status(self):
+        """Health of the player's car for the engineer voice: fuel, tyres,
+        damage. Wheel order is FL, FR, RL, RR (rF2 convention)."""
+        if self._tele is None or self._scor is None:
+            return None
+        player = self._player_scoring()
+        if player is None:
+            return None
+        v = self._player_telemetry(player.mID)
+        if v is None:
+            return None
+        return {
+            "fuel": float(v.mFuel),
+            "fuel_capacity": float(v.mFuelCapacity),
+            "flat": [bool(v.mWheels[i].mFlat) for i in range(4)],
+            "wheel_detached": [bool(v.mWheels[i].mDetached) for i in range(4)],
+            "pressure": [float(v.mWheels[i].mPressure) for i in range(4)],
+            "parts_detached": bool(v.mDetached),
+            "dents": sum(int(d) for d in v.mDentSeverity),
+            "overheating": bool(v.mOverheating),
+        }
+
     def nearby(self, radius: float = 25.0):
         """World x/z of the player and every car within `radius` meters
         (cars in the pits excluded) — the spotter's raw input. Reuses the

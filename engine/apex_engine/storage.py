@@ -53,6 +53,9 @@ class LapStore:
         self.laps_dir = self.root / "laps"
         self.laps_dir.mkdir(parents=True, exist_ok=True)
         self.db_path = self.root / "apex.db"
+        # bumped on every change to the lap library — lets the server cache
+        # the (expensive) lap list and the UI skip refetching unchanged data
+        self.version = 0
         with self._conn() as con:
             con.executescript(SCHEMA)
             self._migrate(con)
@@ -151,6 +154,8 @@ class LapStore:
                 con.execute("DELETE FROM laps WHERE id=?", (lap_id,))
         for lap_id in doomed:
             (self.laps_dir / f"{lap_id}.npz").unlink(missing_ok=True)
+        if doomed:
+            self.version += 1
         return len(doomed)
 
     def existing_import_keys(self) -> set:
@@ -250,6 +255,7 @@ class LapStore:
                 ),
             )
             lap_id = cur.lastrowid
+        self.version += 1
         if lap.channels:  # game-log imports have times only, no channel data
             arrays = {ch: np.asarray(vals, dtype=np.float32)
                       for ch, vals in lap.channels.items()}
@@ -257,6 +263,7 @@ class LapStore:
         return lap_id
 
     def delete_lap(self, lap_id: int) -> None:
+        self.version += 1
         with self._conn() as con:
             con.execute("DELETE FROM laps WHERE id=?", (lap_id,))
         (self.laps_dir / f"{lap_id}.npz").unlink(missing_ok=True)

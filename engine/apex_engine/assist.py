@@ -83,8 +83,13 @@ LAT_MIN = 1.0      # m — closer than this laterally is "same line", not alongs
 LAT_MAX = 5.5      # m — beyond this they're not really alongside
 HOLD = 0.35        # s — a state must persist this long before it's announced
 
-SPOTTER_PHRASES = ["Car left.", "Car right.", "Three wide, you're in the middle.",
-                   "Clear left.", "Clear right.", "Clear all round."]
+STILL_THERE_AFTER = 2.5   # s alongside before the first "still there"
+STILL_THERE_EVERY = 3.0   # s between repeats
+STILL_THERE_MAX = 3       # don't nag forever in a long side-by-side fight
+
+SPOTTER_PHRASES = ["Car left.", "Car right.", "Three wide, you're in the middle. Hold your line.",
+                   "Clear left.", "Clear right.", "Clear all round.",
+                   "Still there.", "Still there, hold your line."]
 
 
 class Spotter:
@@ -103,6 +108,9 @@ class Spotter:
         self.state = (False, False)        # (left, right) currently announced
         self._candidate = (False, False)
         self._candidate_since = 0.0
+        self._alongside_since = 0.0
+        self._last_reminder = 0.0
+        self._reminders = 0
         voice.prewarm(SPOTTER_PHRASES)
 
     def heading(self) -> Optional[tuple[float, float]]:
@@ -135,7 +143,23 @@ class Spotter:
                     right = True
                 else:
                     left = True
-        return self._update((left, right))
+        return self._update((left, right)) or self._reminder()
+
+    def _reminder(self) -> Optional[str]:
+        """While a car stays alongside: "Still there, hold your line", then
+        "Still there" every few seconds, a few times at most."""
+        if not any(self.state) or self.state == (True, True):
+            return None  # three-wide already carried "hold your line"
+        now = time.monotonic()
+        if now - self._alongside_since < STILL_THERE_AFTER:
+            return None
+        if self._reminders >= STILL_THERE_MAX or now - self._last_reminder < STILL_THERE_EVERY:
+            return None
+        msg = "Still there, hold your line." if self._reminders == 0 else "Still there."
+        self._reminders += 1
+        self._last_reminder = now
+        self.voice.say(msg, urgent=True)
+        return msg
 
     def _update(self, observed: tuple[bool, bool]) -> Optional[str]:
         now = time.monotonic()
@@ -147,8 +171,12 @@ class Spotter:
             return None
         prev, self.state = self.state, observed
         left, right = observed
+        if any(observed) and not any(prev):
+            self._alongside_since = now
+            self._reminders = 0
+            self._last_reminder = now
         if left and right:
-            msg = "Three wide, you're in the middle."
+            msg = "Three wide, you're in the middle. Hold your line."
         elif left and not prev[0]:
             msg = "Car left."
         elif right and not prev[1]:
@@ -162,3 +190,87 @@ class Spotter:
             msg = "Clear right."
         self.voice.say(msg, urgent=True)
         return msg
+
+
+# --- engineer: car health -----------------------------------------------------
+
+_WHEELS = ["front left", "front right", "rear left", "rear right"]
+
+
+class Engineer:
+    """Speaks up about the car: fuel running low, punctures and slow leaks,
+    lost wheels and parts, contact damage, overheating. Each event is said
+    once (fuel at most once per lap) — an engineer, not an alarm."""
+
+    def __init__(self, voice: Voice):
+        self.voice = voice
+        self._prev: Optional[dict] = None
+        self._lap = -1
+        self._fuel_at_lap_start: Optional[float] = None
+        self._usage: list[float] = []
+        self._max_pressure = [0.0] * 4
+        self._leak_warned = [False] * 4
+        self._last_fuel_level = None  # which warning tier was last spoken
+
+    def on_frame(self, frame, status: Optional[dict]) -> None:
+        if status is None:
+            return
+        prev, self._prev = self._prev, status
+        if frame.lap_number != self._lap:
+            self._on_new_lap(frame, status)
+        if prev is None:
+            return
+        say = self.voice.say
+
+        for i in range(4):
+            if status["wheel_detached"][i] and not prev["wheel_detached"][i]:
+                say(f"You've lost the {_WHEELS[i]} wheel. Get it back to the pits.", urgent=True)
+            elif status["flat"][i] and not prev["flat"][i]:
+                say(f"Puncture, {_WHEELS[i]}. Box this lap.", urgent=True)
+
+        # slow leak: pressure well below what this tyre ran earlier in the stint
+        if frame.speed > 20:
+            for i, kpa in enumerate(status["pressure"]):
+                self._max_pressure[i] = max(self._max_pressure[i], kpa)
+                peak = self._max_pressure[i]
+                if (peak > 100 and kpa < peak * 0.8 and not status["flat"][i]
+                        and not self._leak_warned[i]):
+                    self._leak_warned[i] = True
+                    say(f"You're losing pressure in the {_WHEELS[i]}. Might be a slow puncture.")
+
+        if status["parts_detached"] and not prev["parts_detached"]:
+            say("You've lost a part off the car.")
+        elif status["dents"] > prev["dents"]:
+            jump = status["dents"] - prev["dents"]
+            if status["dents"] >= 6 or jump >= 3:
+                say("That's heavy damage. Check the car.")
+            else:
+                say("Contact. You've picked up some damage.")
+
+        if status["overheating"] and not prev["overheating"]:
+            say("Engine's running hot. Get some air to it.")
+
+    def _on_new_lap(self, frame, status: dict) -> None:
+        fuel = status["fuel"]
+        if self._fuel_at_lap_start is not None and self._lap >= 0 and not frame.in_pits:
+            used = self._fuel_at_lap_start - fuel
+            if 0.05 < used < status["fuel_capacity"] * 0.5:  # ignore refuels / junk
+                self._usage = (self._usage + [used])[-3:]
+        self._lap = frame.lap_number
+        self._fuel_at_lap_start = fuel
+        if not self._usage or status["fuel_capacity"] <= 0:
+            return
+        per_lap = sum(self._usage) / len(self._usage)
+        laps_left = fuel / per_lap
+        if laps_left < 1.2:
+            tier, msg = 1, "Fuel is critical. Box this lap."
+        elif laps_left < 2.2:
+            tier, msg = 2, "Fuel's getting low, about two laps left."
+        elif laps_left < 3.5:
+            tier, msg = 3, f"Fuel for about {int(laps_left)} laps."
+        else:
+            self._last_fuel_level = None
+            return
+        if tier != self._last_fuel_level:
+            self._last_fuel_level = tier
+            self.voice.say(msg)

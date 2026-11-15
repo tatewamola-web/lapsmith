@@ -127,8 +127,10 @@ any widget window is open.
 
 - **Spoken corner callouts**: *"Turn one. Brake a touch later, then throttle
   sooner."*, timed to finish before the braking zone.
+- **Engineer**: fuel warnings, punctures and slow leaks by tire, lost
+  wheels or parts, contact damage, overheating.
 - **Spotter (beta)**: *"Car left." / "Three wide, you're in the middle." /
-  "Clear right."* from every nearby car's position, interrupting anything
+  "Clear right." / "Still there, hold your line."* from every nearby car's position, interrupting anything
   less urgent.
 
 On a fresh install, run `scripts\get-voice.cmd` once to download the voice.

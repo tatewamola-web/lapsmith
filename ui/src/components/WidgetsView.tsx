@@ -8,7 +8,7 @@ type RefMode = "fastest" | "pb";
 
 interface Settings {
   general: { autohide: boolean };
-  voice: { enabled: boolean; callouts: boolean; spotter: boolean };
+  voice: { enabled: boolean; callouts: boolean; engineer: boolean; spotter: boolean };
   delta: { enabled: boolean; range: number; ref: RefMode; showBar: boolean; showNumber: boolean };
   telemetry: {
     enabled: boolean; ref: RefMode;
@@ -21,7 +21,7 @@ type Name = "delta" | "telemetry" | "callouts";
 
 const DEFAULTS: Settings = {
   general: { autohide: true },
-  voice: { enabled: false, callouts: true, spotter: false },
+  voice: { enabled: false, callouts: true, engineer: true, spotter: false },
   delta: { enabled: false, range: 1.0, ref: "fastest", showBar: true, showNumber: true },
   telemetry: {
     enabled: false, ref: "fastest",
@@ -139,9 +139,10 @@ export default function WidgetsView() {
         enabled={s.voice.enabled}
         onToggle={() => set("voice", { enabled: !s.voice.enabled })}
         title="Voice"
-        desc="A race-engineer voice through your speakers or headset. Runs locally with a neural voice, no internet. Works whether or not any widget is open."
+        desc="A race-engineer voice through your speakers or headset: coaching, car health, and a spotter. Runs locally with a neural voice, no internet. Works whether or not any widget is open."
       >
         <Check label="Speak corner callouts" checked={s.voice.callouts} onChange={(v) => set("voice", { callouts: v })} />
+        <Check label="Engineer — fuel, punctures, damage" checked={s.voice.engineer} onChange={(v) => set("voice", { engineer: v })} />
         <Check label="Spotter (beta) — car left / right / clear" checked={s.voice.spotter} onChange={(v) => set("voice", { spotter: v })} />
         <button className="pick" onClick={async () => {
           const d = await (await fetch("/api/voice/test", { method: "POST" })).json().catch(() => ({ ok: false }));

@@ -35,19 +35,22 @@ export default function App() {
   const [frame, setFrame] = useState<LiveFrame | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const autoPicked = useRef(false);
+  const libVersion = useRef<string>(""); // refetch laps only when this changes
 
   // status + lap list + sessions poll
   useEffect(() => {
     let stop = false;
     const tick = async () => {
       try {
-        const [s, l, ses] = await Promise.all([
-          getStatus(),
-          getLaps(sessionFilter),
-          getSessions(),
-        ]);
+        const s = await getStatus();
         if (stop) return;
         setStatus(s);
+        // the lap library is big — only pull it again when it changed
+        const v = `${s.library_version ?? Math.random()}|${sessionFilter}`;
+        if (v === libVersion.current) return;
+        const [l, ses] = await Promise.all([getLaps(sessionFilter), getSessions()]);
+        if (stop) return;
+        libVersion.current = v;
         setLaps(l);
         setSessions(ses);
         // default the combo filter to what's being driven (or latest lap)

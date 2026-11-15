@@ -61,6 +61,9 @@ function openWidget(name) {
     hasShadow: false,
     minWidth: cfg.minWidth,
     minHeight: cfg.minHeight,
+    // Chromium slows timers/rendering in windows without focus — and while
+    // you drive, the game always has focus. Overlays must opt out.
+    webPreferences: { backgroundThrottling: false },
   });
   windows[name] = win;
   win.setAlwaysOnTop(true, "screen-saver");

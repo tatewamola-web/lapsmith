@@ -513,6 +513,31 @@ stays alongside, plus "hold your line" when three wide.
 
 ---
 
+## 2026-11-15 (night): Field-test fixes
+
+The first real race with voice and widgets surfaced three problems:
+
+- **Widgets still stuttering.** Chromium deliberately slows windows that
+  don't have focus, and while driving the game always has focus; the
+  overlays now opt out (`backgroundThrottling: false`). Piper's speech
+  synthesis also defaulted to every CPU core, so a burst of new phrases
+  mid-race could steal time from the game; it's now capped at two threads on
+  a below-normal-priority thread.
+- **Delta bar stuck on "no reference".** The reference picker checked once
+  per track/class, found no laps (a brand-new combo), and never looked
+  again. It now re-checks whenever the lap library changes.
+- **A crash triggered a flood of voice messages.** Each bounce and every
+  broken part was its own message. Damage is now handled as one *incident*:
+  events are collected for 1.5 seconds, then the engineer says one sentence
+  ("Puncture front left, and heavy damage. Box this lap."), keeps quiet for
+  12 seconds unless something worse happens, mutes the spotter during the
+  incident, and never repeats a sentence within 4 seconds.
+**Lesson: real-time feedback has to be rate-limited by meaning, not by
+event count. One crash is one event to a driver, however many signals the
+car emits.**
+
+---
+
 ## Design principles that emerged (running list)
 
 1. **Wall off what varies.** One adapter per sim; everything else is shared.

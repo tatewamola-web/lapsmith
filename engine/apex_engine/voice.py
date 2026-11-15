@@ -81,6 +81,7 @@ class Voice:
         self._voice = None
         self._ok = None  # None = not tried yet
         self._lock = threading.Lock()
+        self._recent: dict[str, float] = {}
         threading.Thread(target=self._worker, daemon=True, name="voice").start()
 
     @property
@@ -93,6 +94,11 @@ class Voice:
         """Queue a phrase. Urgent phrases cut off the current one."""
         if not text:
             return
+        # the same sentence twice within a few seconds is never useful
+        now = time.monotonic()
+        if self._recent.get(text, -1e9) > now - 4.0:
+            return
+        self._recent[text] = now
         if urgent:
             self._drain()
             self._interrupt.set()
@@ -118,8 +124,24 @@ class Voice:
         if self._ok is not None:
             return self._ok
         try:
+            import onnxruntime as ort
             from piper import PiperVoice
-            self._voice = PiperVoice.load(str(self.model_path))
+            # Piper builds its own SessionOptions, which default to every CPU
+            # core. Mid-race that steals cores from the game and the widgets,
+            # so cap synthesis at two threads while the model loads.
+            real_opts = ort.SessionOptions
+
+            def capped():
+                o = real_opts()
+                o.intra_op_num_threads = 2
+                o.inter_op_num_threads = 1
+                return o
+
+            ort.SessionOptions = capped
+            try:
+                self._voice = PiperVoice.load(str(self.model_path))
+            finally:
+                ort.SessionOptions = real_opts
             self._ok = True
             logger.info("voice: loaded %s", self.model_path.name)
         except Exception as e:  # missing model or piper not installed
@@ -155,7 +177,14 @@ class Voice:
         return path
 
     def _worker(self) -> None:
+        import ctypes
         import winsound
+        # the game always wins the CPU over speech synthesis
+        try:
+            ctypes.windll.kernel32.SetThreadPriority(
+                ctypes.windll.kernel32.GetCurrentThread(), -1)  # BELOW_NORMAL
+        except Exception:
+            pass
         while True:
             _, _, text = self._q.get()
             self._interrupt.clear()

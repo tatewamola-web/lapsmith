@@ -13,6 +13,7 @@ export function useReference(mode: RefMode = "fastest") {
   const [lap, setLap] = useState<LapChannels | null>(null);
   const [meta, setMeta] = useState<LapMeta | null>(null);
   const key = useRef("");
+  const bestId = useRef<number | null>(null);
 
   useEffect(() => {
     key.current = ""; // mode changed: force a re-pick
@@ -21,7 +22,9 @@ export function useReference(mode: RefMode = "fastest") {
         const s = await getStatus();
         const sess = s.session;
         if (!sess?.track) return;
-        const k = `${mode}|${sess.game}|${sess.track}|${sess.car_class || sess.car}`;
+        // library_version is in the key: a combo with no laps yet must be
+        // re-checked as laps arrive (it used to give up forever: "no ref")
+        const k = `${mode}|${sess.game}|${sess.track}|${sess.car_class || sess.car}|${s.library_version ?? ""}`;
         if (k === key.current) return;
         const laps = await getLaps();
         const candidates = laps.filter(
@@ -34,11 +37,14 @@ export function useReference(mode: RefMode = "fastest") {
         );
         key.current = k;
         if (!candidates.length) {
+          bestId.current = null;
           setLap(null);
           setMeta(null);
           return;
         }
         const best = candidates.reduce((a, b) => (a.lap_time <= b.lap_time ? a : b));
+        if (best.id === bestId.current) return; // same reference: keep it
+        bestId.current = best.id;
         setMeta(best);
         setLap((await getLapData(best.id)) as LapChannels);
       } catch {

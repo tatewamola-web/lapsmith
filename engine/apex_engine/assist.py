@@ -211,6 +211,24 @@ class Engineer:
         self._max_pressure = [0.0] * 4
         self._leak_warned = [False] * 4
         self._last_fuel_level = None  # which warning tier was last spoken
+        self._events: dict[str, str] = {}
+        self._pending_since: Optional[float] = None
+        self._quiet_until = 0.0
+        self._reported_prio = -1
+        self._dents_at_start: Optional[int] = None
+
+    # Incident handling: a crash produces a burst of raw events (every bounce
+    # adds dents, parts come off, a tyre goes). Collect them for a moment,
+    # then say ONE thing: the worst problem, plus a second if it matters.
+    SETTLE = 1.5      # s to wait after the first event before speaking
+    QUIET = 12.0      # s after a report: only a worse problem may speak
+
+    # priority (higher = more important), message
+    _PRIO = {"wheel": 5, "flat": 4, "heavy": 3, "part": 2, "leak": 2, "hot": 1, "contact": 0}
+
+    def incident_active(self) -> bool:
+        """True during a crash and shortly after — the spotter stays quiet."""
+        return time.monotonic() < self._quiet_until or self._pending_since is not None
 
     def on_frame(self, frame, status: Optional[dict]) -> None:
         if status is None:
@@ -220,35 +238,69 @@ class Engineer:
             self._on_new_lap(frame, status)
         if prev is None:
             return
-        say = self.voice.say
 
         for i in range(4):
             if status["wheel_detached"][i] and not prev["wheel_detached"][i]:
-                say(f"You've lost the {_WHEELS[i]} wheel. Get it back to the pits.", urgent=True)
+                self._event("wheel", f"you've lost the {_WHEELS[i]} wheel")
             elif status["flat"][i] and not prev["flat"][i]:
-                say(f"Puncture, {_WHEELS[i]}. Box this lap.", urgent=True)
+                self._event("flat", f"puncture {_WHEELS[i]}")
 
-        # slow leak: pressure well below what this tyre ran earlier in the stint
-        if frame.speed > 20:
+        if frame.speed > 20 and self._pending_since is None:
             for i, kpa in enumerate(status["pressure"]):
                 self._max_pressure[i] = max(self._max_pressure[i], kpa)
                 peak = self._max_pressure[i]
                 if (peak > 100 and kpa < peak * 0.8 and not status["flat"][i]
                         and not self._leak_warned[i]):
                     self._leak_warned[i] = True
-                    say(f"You're losing pressure in the {_WHEELS[i]}. Might be a slow puncture.")
+                    self._event("leak", f"you're losing pressure in the {_WHEELS[i]}")
 
         if status["parts_detached"] and not prev["parts_detached"]:
-            say("You've lost a part off the car.")
-        elif status["dents"] > prev["dents"]:
-            jump = status["dents"] - prev["dents"]
-            if status["dents"] >= 6 or jump >= 3:
-                say("That's heavy damage. Check the car.")
-            else:
-                say("Contact. You've picked up some damage.")
+            self._event("part", "you've lost a part")
+        if status["dents"] > prev["dents"]:
+            if self._dents_at_start is None:
+                self._dents_at_start = prev["dents"]
+            total = status["dents"] - self._dents_at_start
+            heavy = status["dents"] >= 6 or total >= 3
+            self._event("heavy" if heavy else "contact", "heavy damage" if heavy else "")
 
         if status["overheating"] and not prev["overheating"]:
-            say("Engine's running hot. Get some air to it.")
+            self._event("hot", "engine's running hot")
+
+        self._maybe_report()
+
+    def _event(self, kind: str, detail: str) -> None:
+        now = time.monotonic()
+        prio = self._PRIO[kind]
+        # inside the quiet window, only something worse than what was
+        # already reported gets through
+        if now < self._quiet_until and prio <= self._reported_prio:
+            return
+        if self._pending_since is None:
+            self._pending_since = now
+        self._events[kind] = detail
+
+    def _maybe_report(self) -> None:
+        if self._pending_since is None or time.monotonic() - self._pending_since < self.SETTLE:
+            return
+        ev = sorted(self._events.items(), key=lambda kv: -self._PRIO[kv[0]])
+        top_kind, top_detail = ev[0]
+        phrases = {
+            "contact": "Contact. Some damage, nothing serious.",
+            "heavy": "That's heavy damage.",
+            "hot": "Engine's running hot.",
+        }
+        msg = phrases.get(top_kind) or (top_detail[0].upper() + top_detail[1:] + ".")
+        # one extra fact if it's a different, serious problem
+        if len(ev) > 1 and self._PRIO[ev[1][0]] >= 2 and ev[1][1]:
+            msg = msg.rstrip(".") + f", and {ev[1][1]}."
+        if self._PRIO[top_kind] >= 4 or "heavy" in self._events:
+            msg += " Box this lap."
+        self.voice.say(msg)
+        self._reported_prio = self._PRIO[top_kind]
+        self._quiet_until = time.monotonic() + self.QUIET
+        self._events = {}
+        self._pending_since = None
+        self._dents_at_start = None
 
     def _on_new_lap(self, frame, status: dict) -> None:
         fuel = status["fuel"]

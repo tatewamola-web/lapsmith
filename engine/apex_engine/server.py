@@ -137,7 +137,8 @@ class Engine:
                 self.callout_speaker.on_frame(frame, self.session, lead)
             if vs.get("engineer", True):
                 self.engineer.on_frame(frame, adapter.car_status())
-            if vs.get("spotter", False):
+            # no spotter chatter while the car is crashing / spinning
+            if vs.get("spotter", False) and frame.speed > 12 and not self.engineer.incident_active():
                 msg = self.spotter.on_frame(adapter.nearby())
                 if msg:
                     self.last_spotter = msg

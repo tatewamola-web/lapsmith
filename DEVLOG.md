@@ -611,6 +611,34 @@ Lap-time announcements now default off; LMU already reads them out.
 
 ---
 
+## 2026-11-15 (one more): LMU's own damage data, and the 2-second localhost trap
+
+The rF2 shared memory Lapsmith reads has dents and lost parts, but not what
+LMU's damage screen shows. LMU also runs a local REST API (port 6397, the
+one its own UI uses), and `getVehicleCondition` there has per-corner
+suspension damage (0 to 1), body damage, tyre and brake condition; the
+repair screen adds virtual energy. The adapter now polls it on a background
+thread, so the engineer can call suspension damage by corner in LMU's
+colour bands (light/yellow, medium/orange, heavy/red, broken) and warn on
+virtual energy like fuel.
+
+Engine condition isn't in any of LMU's data, so a dead engine is detected
+from first principles: revs collapsing below 300 while the car still rolls,
+outside the pits, for 1.5 s.
+
+Reports are now assembled from ~30 short pre-synthesized pieces ("Puncture
+front left." + "Rear right suspension's broken." + "Box this lap.") instead
+of one recording per combination, which would have been 1,000+.
+
+The REST data first arrived empty: every request took 2 seconds and hit the
+timeout. `localhost` resolves to IPv6 first on Windows, LMU listens on IPv4
+only, and Python waits ~2 s before falling back; `127.0.0.1` answers in
+25 ms. The widget windows now load from 127.0.0.1 for the same reason.
+**Lesson: "localhost" is a name, not an address. When latency is exactly
+round numbers of seconds, suspect a timeout or fallback, not slowness.**
+
+---
+
 ## Design principles that emerged (running list)
 
 1. **Wall off what varies.** One adapter per sim; everything else is shared.

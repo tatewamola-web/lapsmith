@@ -69,7 +69,7 @@ function openWidget(name) {
   win.setAlwaysOnTop(true, "screen-saver");
   win.setIgnoreMouseEvents(clickThrough, { forward: true });
   win.webContents.session.clearCache().then(() => {
-    win.loadURL(`http://localhost:8000/overlay.html?w=${name}`);
+    win.loadURL(`http://127.0.0.1:8000/overlay.html?w=${name}`);
   });
 
   // Scaling happens inside each widget's page (CSS zoom). Electron's

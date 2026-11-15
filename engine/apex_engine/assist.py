@@ -215,45 +215,62 @@ class Engineer:
         self._quiet_until = 0.0
         self._reported_rank = -1
         self._dents_at_start: Optional[int] = None
-        self._wheel: Optional[tuple[str, int]] = None
+        self._tyre: Optional[tuple[str, int]] = None
         self._lost_part = False
-        voice.prewarm(self.all_reports())
+        self._susp_hit: set[int] = set()
+        self._engine_ran = False
+        self._engine_dead_since: Optional[float] = None
+        self._engine_reported = False
+        self._energy_at_lap_start: Optional[float] = None
+        self._energy_usage: list[float] = []
+        self._last_energy_level = None
+        voice.prewarm(self.all_pieces())
 
-    # Incident handling: a crash produces a burst of raw events (every bounce
-    # adds dents, parts come off, a tyre goes). Collect them briefly, then
-    # say ONE short sentence, pre-synthesized so it plays instantly.
+    # Incident handling: a crash produces a burst of raw events (bounces add
+    # dents, parts come off, tyres and suspension break). Collect them
+    # briefly, then speak ONE message assembled from short pre-synthesized
+    # pieces, worst news first.
     SETTLE = 0.6      # s after the first event: long enough to merge bounces
     QUIET = 10.0      # s after a report: only a worse problem may speak
 
-    def incident_active(self) -> bool:
-        """True during a crash and shortly after — the spotter stays quiet."""
-        return time.monotonic() < self._quiet_until or self._pending_since is not None
+    # Severity buckets match LMU's own damage colours:
+    # light = yellow, medium = orange, heavy = red, broken = gone.
+    @staticmethod
+    def susp_level(x: float) -> Optional[str]:
+        if x >= 0.99:
+            return "broken"
+        if x >= 0.6:
+            return "heavy"
+        if x >= 0.3:
+            return "medium"
+        if x > 0.02:
+            return "light"
+        return None
 
     @staticmethod
-    def report_text(wheel: Optional[tuple[str, int]], severity: Optional[str]) -> str:
-        """('flat', 0), 'heavy' -> 'Puncture front left, heavy damage. Box this lap.'"""
-        parts = []
-        if wheel:
-            kind, i = wheel
-            parts.append(f"lost the {_WHEELS[i]} wheel" if kind == "wheel" else f"puncture {_WHEELS[i]}")
-        if severity:
-            parts.append(f"{severity} damage")
-        text = ", ".join(parts)
-        text = text[0].upper() + text[1:] + "."
-        if wheel or severity == "heavy":
-            text += " Box this lap."
-        return text
+    def susp_phrase(i: int, level: str) -> str:
+        w = _WHEELS[i]
+        if level == "broken":
+            return f"{w[0].upper() + w[1:]} suspension's broken."
+        return f"{level[0].upper() + level[1:]} suspension damage, {w}."
 
     @classmethod
-    def all_reports(cls) -> list[str]:
-        """Every sentence an incident can produce — synthesized at startup
-        so a crash report never waits on speech generation."""
-        sevs = [None, "light", "medium", "heavy"]
-        out = [cls.report_text(None, s) for s in sevs[1:]]
-        for kind in ("wheel", "flat"):
-            for i in range(4):
-                out += [cls.report_text((kind, i), s) for s in sevs]
+    def all_pieces(cls) -> list[str]:
+        """Every piece an incident report can use, synthesized at startup
+        so a report never waits on speech generation (~30 short clips)."""
+        out = ["Light damage.", "Medium damage.", "Heavy damage.", "Box this lap.",
+               "Engine's gone. Get it off the racing line.", "Engine's running hot."]
+        for i in range(4):
+            out.append(f"Puncture {_WHEELS[i]}.")
+            out.append(f"Lost the {_WHEELS[i]} wheel.")
+            out += [cls.susp_phrase(i, lv) for lv in ("light", "medium", "heavy", "broken")]
         return out
+
+    _LEVEL = {None: 0, "light": 1, "medium": 2, "heavy": 3, "broken": 4}
+
+    def incident_active(self) -> bool:
+        """True during a crash and shortly after; the spotter stays quiet."""
+        return time.monotonic() < self._quiet_until or self._pending_since is not None
 
     def on_frame(self, frame, status: Optional[dict]) -> None:
         if status is None:
@@ -266,9 +283,18 @@ class Engineer:
 
         for i in range(4):
             if status["wheel_detached"][i] and not prev["wheel_detached"][i]:
-                self._incident(wheel=("wheel", i))
+                self._incident(tyre=("wheel", i))
             elif status["flat"][i] and not prev["flat"][i]:
-                self._incident(wheel=("flat", i))
+                self._incident(tyre=("flat", i))
+
+        # suspension (LMU REST): a corner moving to a worse colour bucket
+        if "suspension" in status and "suspension" in prev:
+            for i in range(4):
+                now_lv = self._LEVEL[self.susp_level(status["suspension"][i])]
+                was_lv = self._LEVEL[self.susp_level(prev["suspension"][i])]
+                if now_lv > was_lv:
+                    self._incident()
+                    self._susp_hit.add(i)
 
         if frame.speed > 20 and self._pending_since is None:
             for i, kpa in enumerate(status["pressure"]):
@@ -289,15 +315,34 @@ class Engineer:
         if status["overheating"] and not prev["overheating"]:
             self.voice.say("Engine's running hot.")
 
+        self._check_engine(frame, status)
         self._maybe_report(status)
 
-    def _incident(self, wheel: Optional[tuple[str, int]] = None) -> None:
+    def _check_engine(self, frame, status: dict) -> None:
+        """No engine-health value exists in LMU's data, but a dead engine is
+        unmistakable: revs collapse while the car is still rolling."""
+        now = time.monotonic()
+        rpm = status.get("rpm", 0.0)
+        if rpm > 1500:
+            self._engine_ran = True
+            self._engine_dead_since = None
+            self._engine_reported = False
+            return
+        if (self._engine_ran and rpm < 300 and frame.speed > 3 and not frame.in_pits
+                and not self._engine_reported):
+            if self._engine_dead_since is None:
+                self._engine_dead_since = now
+            elif now - self._engine_dead_since > 1.5:
+                self._engine_reported = True
+                self.voice.say_many(["Engine's gone. Get it off the racing line."])
+
+    def _incident(self, tyre: Optional[tuple[str, int]] = None) -> None:
         if self._pending_since is None:
             self._pending_since = time.monotonic()
-        if wheel and (self._wheel is None or wheel[0] == "wheel"):
-            self._wheel = wheel  # a lost wheel outranks a puncture
+        if tyre and (self._tyre is None or tyre[0] == "wheel"):
+            self._tyre = tyre  # a lost wheel outranks a puncture
 
-    def _severity(self, status: dict) -> Optional[str]:
+    def _body_severity(self, status: dict) -> Optional[str]:
         if self._dents_at_start is None and not self._lost_part:
             return None
         start = status["dents"] if self._dents_at_start is None else self._dents_at_start
@@ -308,22 +353,41 @@ class Engineer:
             return "medium"
         return "light"
 
-    _RANK = {None: 0, "light": 1, "medium": 2, "heavy": 3}
-
     def _maybe_report(self, status: dict) -> None:
         if self._pending_since is None or time.monotonic() - self._pending_since < self.SETTLE:
             return
-        severity = self._severity(status)
-        rank = self._RANK[severity] + (10 if self._wheel else 0)
-        # within the quiet window only something worse than the last report speaks
-        if time.monotonic() >= self._quiet_until or rank > self._reported_rank:
-            self.voice.say(self.report_text(self._wheel, severity), urgent=True)
+        pieces: list[str] = []
+        rank = 0
+        box = False
+        if self._tyre:
+            kind, i = self._tyre
+            pieces.append(f"Lost the {_WHEELS[i]} wheel." if kind == "wheel" else f"Puncture {_WHEELS[i]}.")
+            rank, box = 20, True
+        # worst damaged suspension corner(s), at most two
+        susp = []
+        if "suspension" in status:
+            susp = sorted(((self._LEVEL[self.susp_level(status["suspension"][i])], i)
+                           for i in self._susp_hit), reverse=True)
+        names = {v: k for k, v in self._LEVEL.items()}
+        for level, i in susp[:2]:
+            if names[level]:
+                pieces.append(self.susp_phrase(i, names[level]))
+                rank = max(rank, 10 + level)
+                box = box or level >= 3
+        body = self._body_severity(status)
+        if body and len(pieces) < 2:
+            pieces.append(f"{body[0].upper() + body[1:]} damage.")
+            rank = max(rank, self._LEVEL[body])
+            box = box or body == "heavy"
+        if pieces and (time.monotonic() >= self._quiet_until or rank > self._reported_rank):
+            self.voice.say_many(pieces + (["Box this lap."] if box else []))
             self._reported_rank = rank
             self._quiet_until = time.monotonic() + self.QUIET
         self._pending_since = None
         self._dents_at_start = None
-        self._wheel = None
+        self._tyre = None
         self._lost_part = False
+        self._susp_hit = set()
 
     def _on_new_lap(self, frame, status: dict) -> None:
         fuel = status["fuel"]
@@ -331,6 +395,7 @@ class Engineer:
             used = self._fuel_at_lap_start - fuel
             if 0.05 < used < status["fuel_capacity"] * 0.5:  # ignore refuels / junk
                 self._usage = (self._usage + [used])[-3:]
+        self._check_energy(frame, status)
         self._lap = frame.lap_number
         self._fuel_at_lap_start = fuel
         if not self._usage or status["fuel_capacity"] <= 0:
@@ -348,4 +413,31 @@ class Engineer:
             return
         if tier != self._last_fuel_level:
             self._last_fuel_level = tier
+            self.voice.say(msg)
+
+    def _check_energy(self, frame, status: dict) -> None:
+        """Virtual energy (LMU REST): same lap-based warnings as fuel. In
+        classes that run on virtual energy it's the real limit, not fuel."""
+        e, e_max = status.get("energy"), status.get("energy_max")
+        if not e or not e_max:
+            return
+        if self._energy_at_lap_start is not None and self._lap >= 0 and not frame.in_pits:
+            used = self._energy_at_lap_start - e
+            if 0 < used < e_max * 0.5:
+                self._energy_usage = (self._energy_usage + [used])[-3:]
+        self._energy_at_lap_start = e
+        if not self._energy_usage:
+            return
+        laps_left = e / (sum(self._energy_usage) / len(self._energy_usage))
+        if laps_left < 1.2:
+            tier, msg = 1, "Energy is critical. Box this lap."
+        elif laps_left < 2.2:
+            tier, msg = 2, "Energy's getting low, about two laps left."
+        elif laps_left < 3.5:
+            tier, msg = 3, f"Energy for about {int(laps_left)} laps."
+        else:
+            self._last_energy_level = None
+            return
+        if tier != self._last_energy_level:
+            self._last_energy_level = tier
             self.voice.say(msg)

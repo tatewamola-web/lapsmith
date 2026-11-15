@@ -12,6 +12,8 @@ Reads two buffers:
 from __future__ import annotations
 
 import math
+import threading
+import time
 from typing import Optional
 
 from ...schema import TelemetryFrame, SessionContext
@@ -48,6 +50,12 @@ class LMUAdapter(BaseAdapter):
         self._prev_bp: dict = {}
         # last smoothed lap distance by slot id (kept monotonic within a lap)
         self._prev_dist: dict = {}
+        # LMU's local REST API (port 6397) carries what its own HUD shows —
+        # per-corner suspension damage, body damage, virtual energy — none of
+        # which is in the rF2 shared memory. Polled on a background thread so
+        # an HTTP hiccup can never stall the telemetry loop.
+        self._rest: dict = {}
+        threading.Thread(target=self._poll_rest, daemon=True, name="lmu-rest").start()
 
     # -- BaseAdapter --------------------------------------------------
 
@@ -207,6 +215,32 @@ class LMUAdapter(BaseAdapter):
             out.append((int(sv.mID), _decode(sv.mDriverName), _decode(sv.mVehicleName), frame))
         return out
 
+    def _poll_rest(self) -> None:
+        import json
+        import urllib.request
+        # 127.0.0.1, not "localhost": Windows tries IPv6 (::1) first, LMU only
+        # listens on IPv4, and Python waits ~2 s before falling back.
+        base = "http://127.0.0.1:6397"
+        n = 0
+        while True:
+            try:
+                cond = json.load(urllib.request.urlopen(
+                    base + "/rest/garage/getVehicleCondition", timeout=1))
+                update = {
+                    "suspension": [float(x) for x in cond.get("suspensionDamage", [0] * 4)],
+                    "body": float(cond.get("vehicleDamage", 0.0)),
+                }
+                if n % 4 == 0:  # energy changes slowly: 0.5 Hz is plenty
+                    fuel = json.load(urllib.request.urlopen(
+                        base + "/rest/garage/UIScreen/RepairAndRefuel", timeout=2)).get("fuelInfo", {})
+                    update["energy"] = float(fuel.get("currentVirtualEnergy", 0.0))
+                    update["energy_max"] = float(fuel.get("maxVirtualEnergy", 0.0))
+                self._rest = {**self._rest, **update, "at": time.monotonic()}
+            except Exception:
+                pass  # game not running / API unavailable: just no REST data
+            n += 1
+            time.sleep(0.5)
+
     def car_status(self):
         """Health of the player's car for the engineer voice: fuel, tyres,
         damage. Wheel order is FL, FR, RL, RR (rF2 convention)."""
@@ -227,6 +261,11 @@ class LMUAdapter(BaseAdapter):
             "parts_detached": bool(v.mDetached),
             "dents": sum(int(d) for d in v.mDentSeverity),
             "overheating": bool(v.mOverheating),
+            "rpm": float(v.mEngineRPM),
+            # from LMU's REST API (None until it answers; stale after 3 s = unknown)
+            **({k: self._rest[k] for k in ("suspension", "body", "energy", "energy_max")
+                if k in self._rest}
+               if time.monotonic() - self._rest.get("at", -1e9) < 3 else {}),
         }
 
     def nearby(self, radius: float = 25.0):

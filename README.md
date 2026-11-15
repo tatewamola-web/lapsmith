@@ -127,8 +127,10 @@ any widget window is open.
 
 - **Spoken corner callouts**: *"Turn one. Brake a touch later, then throttle
   sooner."*, timed to finish before the braking zone.
-- **Engineer**: fuel warnings, punctures and slow leaks by tire, lost
-  wheels or parts, contact damage, overheating.
+- **Engineer**: damage in LMU's own light / medium / heavy bands, suspension
+  damage by corner, punctures and slow leaks, lost wheels, a dead engine,
+  overheating, and fuel or virtual-energy warnings. A crash is one short
+  report, not a stream of messages.
 - **Spotter (beta)**: *"Car left." / "Three wide, you're in the middle." /
   "Clear right." / "Still there, hold your line."* from every nearby car's position, interrupting anything
   less urgent.

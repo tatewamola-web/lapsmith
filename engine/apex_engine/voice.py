@@ -148,6 +148,19 @@ class Voice:
             self._ok = None
         logger.info("voice: switched to %s", model)
 
+    def say_many(self, pieces: list[str]) -> None:
+        """One urgent message built from short pre-synthesized pieces
+        ("Puncture front left." + "Box this lap."), played back to back with
+        nothing allowed in between."""
+        pieces = [p for p in pieces if p]
+        if not pieces:
+            return
+        self._drain()
+        self._interrupt.set()
+        base = time.monotonic()
+        for i, p in enumerate(pieces):
+            self._q.put((0, base + i * 1e-6, p))
+
     def prewarm(self, phrases: list[str]) -> None:
         """Synthesize phrases into the cache ahead of time (background)."""
         def run():

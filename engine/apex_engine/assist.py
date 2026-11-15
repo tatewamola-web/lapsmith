@@ -78,12 +78,13 @@ class CalloutSpeaker:
 
 # --- spotter ----------------------------------------------------------------
 
-CAR_LENGTH = 5.0   # m — overlap window along the car's direction of travel
+CAR_LENGTH = 6.0   # m — overlap window along travel (car length + ~1 m early pickup)
 LAT_MIN = 1.0      # m — closer than this laterally is "same line", not alongside
 LAT_MAX = 5.5      # m — beyond this they're not really alongside
-HOLD = 0.35        # s — a state must persist this long before it's announced
+HOLD_ON = 0.1      # s — a car appearing alongside: call it almost immediately
+HOLD_OFF = 0.4     # s — "clear" waits a little longer so it doesn't flicker
 
-STILL_THERE_AFTER = 2.5   # s alongside before the first "still there"
+STILL_THERE_AFTER = 2.0   # s alongside before the first "still there"
 STILL_THERE_EVERY = 3.0   # s between repeats
 STILL_THERE_MAX = 3       # don't nag forever in a long side-by-side fight
 
@@ -167,14 +168,16 @@ class Spotter:
             self._candidate = observed
             self._candidate_since = now
             return None
-        if observed == self.state or now - self._candidate_since < HOLD:
+        # gaining a car is urgent; losing one can wait a moment
+        hold = HOLD_ON if sum(observed) > sum(self.state) else HOLD_OFF
+        if observed == self.state or now - self._candidate_since < hold:
             return None
         prev, self.state = self.state, observed
         left, right = observed
         if any(observed) and not any(prev):
             self._alongside_since = now
             self._reminders = 0
-            self._last_reminder = now
+            self._last_reminder = float("-inf")  # first reminder: only the 2 s rule applies
         if left and right:
             msg = "Three wide, you're in the middle. Hold your line."
         elif left and not prev[0]:
@@ -271,8 +274,11 @@ class Engineer:
     _LEVEL = {None: 0, "light": 1, "medium": 2, "heavy": 3, "broken": 4}
 
     def incident_active(self) -> bool:
-        """True during a crash and shortly after; the spotter stays quiet."""
-        return time.monotonic() < self._quiet_until or self._pending_since is not None
+        """True during a crash and 2 s after the report: the spotter stays
+        quiet while the car is spinning, then gets straight back to work
+        (the 10 s QUIET window only limits further damage reports)."""
+        return (self._pending_since is not None
+                or time.monotonic() < self._quiet_until - self.QUIET + 2.0)
 
     def on_frame(self, frame, status: Optional[dict]) -> None:
         if status is None:

@@ -660,6 +660,22 @@ calibrate against the screen, not your intuition about the numbers.**
 
 ---
 
+## 2026-11-15 (last): A spotter has to be instant
+
+Field report: car calls came late. Three delays: every call waited 0.35 s
+of confirmation, the spotter was muted for the full 10 s after any damage
+report, and a car only counted once it fully overlapped. Now a car
+appearing is confirmed in 0.1 s (clearing still waits 0.4 s so a tight
+battle doesn't flicker between "car left" and "clear"), the mute lasts only
+through the crash plus 2 s, and the overlap window starts a metre earlier.
+A timing test caught that the first "still there" was also waiting on the
+3 s repeat timer; it now comes at 2 s. Measured: "Car left" 0.11 s after
+the car arrives.
+**Lesson: debounce asymmetrically. Being late to say "car left" is worse
+than being late to say "clear".**
+
+---
+
 ## Design principles that emerged (running list)
 
 1. **Wall off what varies.** One adapter per sim; everything else is shared.
